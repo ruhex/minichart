@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MiniChart — streaming dashboard</title>
+<style>
+  /* Project dark theme + CVD-validated chart palette. */
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel2:#21262d; --border:#30363d;
+    --text:#c9d1d9; --dim:#8b949e; --bright:#e6edf3;
+    --blue:#2f81f7; --orange:#db6d28; --purple:#a371f7; --green:#3fb950; --pink:#f778ba;
+    --yellow:#d29922;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:var(--bg); color:var(--text);
+    font:13px/1.45 -apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  /* ── Top bar ── */
+  .topbar{
+    position:sticky; top:0; z-index:10;
+    background:rgba(13,17,23,.82);
+    backdrop-filter:saturate(140%) blur(10px);
+    -webkit-backdrop-filter:saturate(140%) blur(10px);
+    border-bottom:1px solid var(--border);
+  }
+  .topbar-in{
+    max-width:1340px; margin:0 auto; padding:12px 20px;
+    display:flex; align-items:center; gap:16px; flex-wrap:wrap;
+  }
+  .brand{display:flex; align-items:baseline; gap:10px; margin-right:auto}
+  .brand h1{margin:0; font-size:16px; font-weight:600; letter-spacing:-.01em; color:var(--bright)}
+  .brand .sub{color:var(--dim); font-size:12px}
+
+  .badge{
+    display:inline-flex; align-items:center; gap:7px;
+    font-size:10.5px; font-weight:600; letter-spacing:.05em; text-transform:uppercase;
+    padding:4px 10px; border-radius:20px; border:1px solid var(--border); background:var(--panel2);
+  }
+  .badge .d{width:7px; height:7px; border-radius:50%}
+  .badge.live{color:var(--green); border-color:rgba(63,185,80,.4)}
+  .badge.live .d{background:var(--green); box-shadow:0 0 8px var(--green); animation:pulse 1.3s ease-in-out infinite}
+  .badge.paused{color:var(--yellow); border-color:rgba(210,153,34,.4)}
+  .badge.paused .d{background:var(--yellow)}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+  .stat{display:flex; flex-direction:column; line-height:1.1}
+  .stat .v{font-size:15px; font-weight:600; color:var(--bright); font-variant-numeric:tabular-nums}
+  .stat .k{font-size:9.5px; color:var(--dim); text-transform:uppercase; letter-spacing:.06em; margin-top:3px}
+  .divider{width:1px; height:26px; background:var(--border)}
+
+  .btn{
+    background:var(--panel2); color:var(--text); border:1px solid var(--border);
+    padding:7px 13px; border-radius:7px; font:600 12px/1 inherit; cursor:pointer;
+    transition:background .12s, border-color .12s, color .12s;
+    display:inline-flex; align-items:center; gap:6px;
+  }
+  .btn:hover{background:#2d333b; border-color:var(--blue)}
+  .btn.primary{background:var(--green); color:#06120c; border-color:var(--green)}
+  .btn.primary:hover{filter:brightness(1.08); background:var(--green); border-color:var(--green)}
+  .btn.ghost{background:transparent}
+
+  .field{display:flex; align-items:center; gap:6px; font-size:11px; color:var(--dim)}
+  .field input, .field select{
+    background:var(--panel); border:1px solid var(--border); color:var(--bright);
+    border-radius:6px; padding:5px 8px; font:12px/1.2 ui-monospace,'SF Mono',monospace;
+    font-variant-numeric:tabular-nums;
+  }
+  .field input{width:74px}
+  .field input:focus, .field select:focus{outline:none; border-color:var(--blue)}
+  .field select{padding:5px 6px}
+
+  /* ── Grid + tiles ── */
+  .wrap{max-width:1340px; margin:0 auto; padding:18px 20px 48px}
+  .grid{
+    display:grid; gap:14px;
+    grid-template-columns:repeat(auto-fill, minmax(330px, 1fr));
+  }
+  .tile{
+    background:var(--panel); border:1px solid var(--border); border-radius:11px;
+    padding:12px 14px 10px; display:flex; flex-direction:column;
+  }
+  .tile-head{display:flex; align-items:center; gap:10px; margin-bottom:8px; min-height:22px}
+  .tile-tags{display:flex; gap:10px; font-size:10.5px; color:var(--dim); flex-wrap:wrap}
+  .tile-tags .ser{display:inline-flex; align-items:center; gap:5px; white-space:nowrap}
+  .tile-tags .ser i{width:9px; height:9px; border-radius:2px; display:inline-block}
+  .tile-tags .ser .name{color:var(--text); font-weight:500}
+
+  .tile-val{
+    margin-left:auto; text-align:right; line-height:1;
+    font-variant-numeric:tabular-nums; display:flex; align-items:baseline; gap:3px;
+  }
+  .tile-val .n{font-size:19px; font-weight:600; color:var(--bright)}
+  .tile-val .sep{color:var(--dim); margin:0 3px; font-weight:400}
+  .tile-val .u{font-size:11px; color:var(--dim); margin-left:3px}
+
+  canvas{
+    width:100%; height:148px; display:block;
+    background:#010409; border-radius:6px;
+  }
+  .tile-foot{
+    display:flex; justify-content:space-between; gap:8px;
+    margin-top:7px; font-size:10.5px; color:var(--dim);
+    font-variant-numeric:tabular-nums;
+  }
+  .tile-foot .ft-agg{color:var(--text); opacity:.7}
+
+  .note{
+    max-width:1340px; margin:0 auto; padding:18px 20px 0;
+    color:var(--dim); font-size:11.5px; line-height:1.65;
+  }
+  .note code{background:var(--panel2); padding:1px 5px; border-radius:3px; color:var(--bright); font:11px ui-monospace,'SF Mono',monospace}
+  .note b{color:var(--text); font-weight:500}
+
+  @media (max-width:560px){
+    .brand{width:100%}
+    .stat .k{display:none}
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-in">
+    <div class="brand">
+      <h1>MiniChart · streaming</h1>
+      <span class="sub">live <code style="background:var(--panel2);padding:1px 5px;border-radius:3px;color:var(--bright);font-size:11px">chart.push()</code> dashboard</span>
+    </div>
+
+    <span id="badge" class="badge live"><span class="d"></span>Live</span>
+
+    <div class="stat"><span class="v" id="s-fps">—</span><span class="k">fps</span></div>
+    <div class="divider"></div>
+    <div class="stat"><span class="v" id="s-pps">—</span><span class="k">push / sec</span></div>
+    <div class="divider"></div>
+    <div class="stat"><span class="v" id="s-samples">—</span><span class="k">samples held</span></div>
+    <div class="divider"></div>
+    <div class="stat"><span class="v" id="s-total">0</span><span class="k">total pushes</span></div>
+
+    <button id="btn-toggle" type="button" class="btn primary" title="Start / stop the stream (Space)">Stop</button>
+    <button id="btn-reset" type="button" class="btn ghost" title="Clear and reseed every chart">Reset</button>
+
+    <label class="field">cap
+      <input id="cap" type="number" min="200" step="100" value="5400" title="opts.maxSamples — max samples held per chart (memory bound)">
+    </label>
+    <label class="field">rate
+      <select id="rate" title="Pushes per second, per tile">
+        <option value="1">60 Hz</option>
+        <option value="2">30 Hz</option>
+        <option value="4">15 Hz</option>
+        <option value="12">5 Hz</option>
+      </select>
+    </label>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="grid" id="grid"></div>
+</main>
+
+<p class="note">
+  <b>8 independent charts</b>, each a separate <code>MiniChart</code> in streaming mode. On every tick each tile calls
+  <code>chart.push(value, epochSec, seriesIdx)</code> — an O(1)-per-point incremental render whose cost tracks canvas
+  width &times; series count, not how many samples have arrived. The X window scrolls via a per-pixel-column ring
+  (<code>rangeSec = 60s</code>) and memory is bounded by <code>maxSamples</code>. The <b>Network I/O</b> tile pushes
+  two series. Press <code>Space</code> to pause, or trim the cap to watch eviction shrink <code>samples held</code>.
+</p>
+
+<script src="minichart.min.js"></script>
+<script>
+'use strict';
+(function(){
+
+// ── Helpers ──────────────────────────────────────────────────────────────
+var $ = function(s, r){ return (r || document).querySelector(s); };
+var clamp = function(v, a, b){ return v < a ? a : (v > b ? b : v); };
+var noise = function(a){ return (Math.random() * 2 - 1) * a; };
+
+// CVD-validated palette (assigned per-tile; reuse across tiles is fine since
+// each tile is an independent chart — identity only has to be unique WITHIN one).
+var PAL = { blue:'#2f81f7', orange:'#db6d28', purple:'#a371f7', green:'#3fb950', pink:'#f778ba' };
+
+// ── Signal generators ────────────────────────────────────────────────────
+// Each returns a single number, or (for multi-series tiles) an array of them.
+// They are functions of epoch-seconds `t` plus a stateful `s` so the seed fill
+// and the live loop form one continuous signal.
+var GENS = {
+  cpu:  function(t){ return clamp(46 + 22*Math.sin(t*0.60) + 7*Math.sin(t*2.4+1) + noise(6), 3, 97); },
+  mem:  function(t, s){
+    if (s.v == null) s.v = 58;            // slow random-walk drift
+    s.v = clamp(s.v + noise(1.1), 20, 92);
+    return s.v;
+  },
+  net:  function(t){
+    return [
+      clamp(220 + 130*Math.sin(t*0.45)       + noise(34), 8, 950),   // in
+      clamp(135 +  88*Math.sin(t*0.45 + 1.8) + noise(26), 5, 720)    // out
+    ];
+  },
+  lat:  function(t){
+    var v = 86 + 18*Math.sin(t*0.8) + noise(11);
+    if (Math.random() < 0.014) v += 120 + 160*Math.random();         // occasional GC-style spike
+    return clamp(v, 15, 700);
+  },
+  disk: function(t){ return clamp(58 + 44*Math.abs(Math.sin(t*0.34+0.5)) + noise(8), 2, 210); },
+  conn: function(t){ return clamp(820 + 140*Math.sin(t*0.22+3) + noise(42), 120, 2200); },
+  req:  function(t){ return clamp(560 + 220*Math.sin(t*0.55+2) + noise(52), 30, 1600); },
+  err:  function(t){
+    var v = 1.1 + 0.9*Math.sin(t*0.3+4) + noise(0.55);
+    if (Math.random() < 0.009) v += 3 + 3*Math.random();
+    return clamp(v, 0, 14);
+  }
+};
+
+var RANGE_SEC = 60;      // opts.rangeSec — the visible scrolling window
+var SEED_N    = 600;     // pre-fill samples so the window starts full, not empty
+var DEFAULT_CAP = 5400;  // opts.maxSamples — ~1.5× a 60s @ 60Hz window
+
+var TILES = [
+  { id:'cpu',  title:'CPU Load',          unit:'%',   yUnit:'%',  color:'blue',   fill:true,  gen:GENS.cpu },
+  { id:'mem',  title:'Memory',            unit:'%',   yUnit:'%',  color:'green',  fill:true,  gen:GENS.mem },
+  { id:'net',  title:'Network I/O',       unit:'Mbps',yUnit:'Mb', multi:true, colors:['blue','orange'], names:['in','out'], fill:false, gen:GENS.net },
+  { id:'lat',  title:'Latency p95',       unit:'ms',  yUnit:'ms', color:'purple', fill:true,  gen:GENS.lat },
+  { id:'disk', title:'Disk Throughput',   unit:'MB/s',yUnit:'MB', color:'orange', fill:true,  gen:GENS.disk },
+  { id:'conn', title:'Active Connections',unit:'',    yUnit:'',   color:'pink',   fill:true,  gen:GENS.conn },
+  { id:'req',  title:'Request Rate',      unit:'req/s',yUnit:'',  color:'blue',   fill:true,  gen:GENS.req },
+  { id:'err',  title:'Error Rate',        unit:'%',   yUnit:'%',  color:'orange', fill:true,  gen:GENS.err }
+];
+
+// ── Tile construction ────────────────────────────────────────────────────
+var tiles = [];
+
+function makeTile(cfg){
+  var series = cfg.multi
+    ? cfg.colors.map(function(c, k){ return { label: cfg.names[k], color: PAL[c], data: [] }; })
+    : [{ label: cfg.title, color: PAL[cfg.color], data: [] }];
+
+  var tile = { cfg:cfg, series:series, labels:[], multi:!!cfg.multi, state:{},
+               agg:{ min:Infinity, max:-Infinity, resetAt:0 }, lastV:null };
+
+  // DOM
+  var el = document.createElement('div');
+  el.className = 'tile';
+  var tags = (cfg.multi ? cfg.colors.map(function(c, k){
+    return '<span class="ser"><i style="background:' + PAL[c] + '"></i><span class="name">' + cfg.names[k] + '</span></span>';
+  }).join('') : '<span class="ser"><i style="background:' + PAL[cfg.color] + '"></i><span class="name">' + cfg.title + '</span></span>');
+
+  el.innerHTML =
+    '<div class="tile-head">' +
+      '<span class="tile-tags">' + tags + '</span>' +
+      '<span class="tile-val"></span>' +
+    '</div>' +
+    '<canvas></canvas>' +
+    '<div class="tile-foot">' +
+      '<span>window ' + RANGE_SEC + 's</span>' +
+      '<span class="ft-agg">—</span>' +
+    '</div>';
+
+  tile.el    = el;
+  tile.canvas= el.querySelector('canvas');
+  tile.valEl = el.querySelector('.tile-val');
+  tile.aggEl = el.querySelector('.ft-agg');
+
+  // Pre-seed with epoch-second labels spanning the window. This is load-bearing:
+  // it anchors _viewXMin/Max near "now" so the first live push() advances the
+  // ring by one column instead of looping ~1.7e9 times (epoch seconds vs the
+  // default [0,1] view).
+  seedTile(tile);
+
+  tile.chart = new MiniChart(tile.canvas, {
+    type:'line',
+    series: tile.series,
+    labels: tile.labels,
+    rangeSec: RANGE_SEC,
+    maxSamples: DEFAULT_CAP,
+    yUnit: cfg.yUnit || '',
+    fill: cfg.fill !== false,
+    tension: 0.45,
+    yTicks: 3,
+    legend: false,
+    padding: { top:10, right:14, bottom:20 }   // left auto-sizes to the axis labels
+  });
+
+  // Last seeded sample → initial readout.
+  if (tile.multi){
+    tile.lastV = tile.series.map(function(s){ return s.data[s.data.length - 1]; });
+  } else {
+    tile.lastV = tile.series[0].data[tile.series[0].data.length - 1];
+  }
+  renderVal(tile);
+  return tile;
+}
+
+function seedTile(tile){
+  var n = SEED_N, rs = RANGE_SEC, now = Date.now() / 1000, dt = rs / n;
+  for (var i = 0; i < tile.series.length; i++) tile.series[i].data.length = 0;
+  tile.labels.length = 0;
+  for (var j = 0; j < n; j++){
+    var t = now - rs + j * dt;
+    var v = tile.cfg.gen(t, tile.state);
+    tile.labels.push(t);
+    if (tile.multi){ for (var k = 0; k < tile.series.length; k++) tile.series[k].data.push(v[k]); }
+    else { tile.series[0].data.push(v); }
+  }
+}
+
+// ── Push (streaming fast path) ───────────────────────────────────────────
+function pushTile(tile, t){
+  var v = tile.cfg.gen(t, tile.state);
+  if (tile.multi){
+    // push() appends one entry to the shared labels[] per call. For N series at
+    // the same tick that would stack N identical timestamps and desync labels
+    // from each series.data (breaking hover + eviction alignment). Push every
+    // series with the same `t`, then trim the (N-1) duplicate labels so the
+    // window still holds exactly one timestamp per tick — buckets are untouched
+    // (they were updated with `t` directly), so the picture is identical.
+    for (var k = 0; k < v.length; k++) tile.chart.push(v[k], t, k);
+    for (var d = 1; d < v.length; d++) tile.chart.opts.labels.pop();
+  } else {
+    tile.chart.push(v, t, 0);
+  }
+  tile.lastV = v;
+  var arr = tile.multi ? v : [v];
+  for (var p = 0; p < arr.length; p++){
+    if (arr[p] < tile.agg.min) tile.agg.min = arr[p];
+    if (arr[p] > tile.agg.max) tile.agg.max = arr[p];
+  }
+}
+
+// ── Readouts ─────────────────────────────────────────────────────────────
+function fmtNum(x){
+  if (x == null || !isFinite(x)) return '—';
+  var a = Math.abs(x);
+  if (a >= 1000) return (x / 1000).toFixed(2) + 'k';
+  if (a >= 100)  return String(Math.round(x));
+  if (a >= 10)   return x.toFixed(0);
+  if (a >= 1)    return x.toFixed(1);
+  return x.toFixed(2);
+}
+
+function renderVal(tile){
+  var v = tile.lastV;
+  if (v == null){ tile.valEl.innerHTML = '<span class="n">—</span>'; return; }
+  if (tile.multi){
+    tile.valEl.innerHTML =
+      '<span class="n">' + fmtNum(v[0]) + '</span>' +
+      '<span class="sep">/</span>' +
+      '<span class="n">' + fmtNum(v[1]) + '</span>' +
+      '<span class="u">' + tile.cfg.unit + '</span>';
+  } else {
+    tile.valEl.innerHTML =
+      '<span class="n">' + fmtNum(v) + '</span>' +
+      '<span class="u">' + tile.cfg.unit + '</span>';
+  }
+}
+
+// Rolling 4-second low/high footer.
+function renderFoot(tile, now){
+  if (now >= tile.agg.resetAt){
+    if (tile.agg.min !== Infinity){
+      tile.aggEl.textContent = fmtNum(tile.agg.min) + ' – ' + fmtNum(tile.agg.max);
+    }
+    tile.agg.min = Infinity; tile.agg.max = -Infinity;
+    tile.agg.resetAt = now + 4000;
+  }
+}
+
+// ── Stats ────────────────────────────────────────────────────────────────
+var elFps = null, elPps = null, elTotal = null, elSamples = null, elBadge = null, elToggle = null;
+function updateStats(totalPushes){
+  elFps.textContent = fps;
+  elPps.textContent = pps;
+  elTotal.textContent = totalPushes.toLocaleString();
+  var s = 0;
+  for (var i = 0; i < tiles.length; i++){
+    var lb = tiles[i].chart.opts.labels;
+    if (lb && lb.length) s += lb.length;
+  }
+  elSamples.textContent = s.toLocaleString();
+}
+
+// ── Main loop ────────────────────────────────────────────────────────────
+var running = true;
+var every = 1;            // push every Nth frame (1 = ~60Hz)
+var raf = 0;
+
+var fps = 0, pps = 0;
+var frames = 0, pushes = 0, totalPushes = 0;
+var accT = 0, lastReadout = 0;
+
+function loop(){
+  if (!running) return;
+  raf = requestAnimationFrame(loop);
+  var now = performance.now();
+  var t = Date.now() / 1000;
+  frames++;
+
+  if (frames % every === 0){
+    for (var i = 0; i < tiles.length; i++){
+      pushTile(tiles[i], t);
+      pushes++;
+    }
+    totalPushes += tiles.length;
+  }
+
+  // fps + push/sec over a 500ms window.
+  if (now - accT >= 500){
+    var dt = now - accT;
+    fps = Math.round(frames * 1000 / dt);
+    pps = Math.round(pushes * 1000 / dt);
+    frames = 0; pushes = 0; accT = now;
+    updateStats(totalPushes);
+  }
+
+  // Value + range readouts update at ~8Hz so digits stay readable.
+  if (now - lastReadout > 120){
+    lastReadout = now;
+    for (var k = 0; k < tiles.length; k++){ renderVal(tiles[k]); renderFoot(tiles[k], now); }
+  }
+}
+
+function start(){
+  if (running) return;
+  running = true;
+  elToggle.textContent = 'Stop';
+  elToggle.classList.add('primary'); elToggle.classList.remove('ghost');
+  elBadge.className = 'badge live'; elBadge.innerHTML = '<span class="d"></span>Live';
+  frames = 0; pushes = 0; accT = performance.now();
+  loop();
+}
+function stop(){
+  running = false;
+  cancelAnimationFrame(raf);
+  elToggle.textContent = 'Start';
+  elToggle.classList.remove('primary'); elToggle.classList.add('ghost');
+  elBadge.className = 'badge paused'; elBadge.innerHTML = '<span class="d"></span>Paused';
+  fps = 0; pps = 0; updateStats(totalPushes);
+}
+function toggle(){ running ? stop() : start(); }
+
+function buildGrid(){
+  var grid = $('#grid');
+  grid.innerHTML = '';
+  tiles = [];
+  for (var i = 0; i < TILES.length; i++){
+    var tile = makeTile(TILES[i]);
+    grid.appendChild(tile.el);
+    tiles.push(tile);
+  }
+}
+
+function reset(){
+  var wasRunning = running;
+  stop();
+  for (var i = 0; i < tiles.length; i++){
+    try { tiles[i].chart.destroy(); } catch (e) {}
+  }
+  totalPushes = 0;
+  buildGrid();
+  updateStats(0);
+  if (wasRunning) start();
+}
+
+// ── Wire up controls ─────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', function(){
+  elFps = $('#s-fps'); elPps = $('#s-pps'); elTotal = $('#s-total');
+  elSamples = $('#s-samples'); elBadge = $('#badge'); elToggle = $('#btn-toggle');
+
+  $('#btn-toggle').addEventListener('click', function(){ toggle(); this.blur(); });
+  $('#btn-reset').addEventListener('click', function(){ reset(); this.blur(); });
+
+  $('#cap').addEventListener('change', function(e){
+    var v = parseInt(e.target.value, 10);
+    if (!isFinite(v) || v < 200) { v = 200; e.target.value = 200; }
+    for (var i = 0; i < tiles.length; i++){
+      tiles[i].chart.update({ maxSamples: v });   // applies to the live eviction threshold
+    }
+  });
+
+  $('#rate').addEventListener('change', function(e){ every = parseInt(e.target.value, 10) || 1; });
+
+  // Space toggles the stream, but only when focus is NOT already on an
+  // interactive control — a focused <button> activates itself on Space/Enter,
+  // so handling it here too would double-toggle (and pressing Space right after
+  // clicking Stop would silently re-start the stream).
+  window.addEventListener('keydown', function(e){
+    if (e.code === 'Space' && !/INPUT|SELECT|TEXTAREA|BUTTON/.test(e.target.tagName)){
+      e.preventDefault(); toggle();
+    }
+  });
+
+  buildGrid();
+  accT = performance.now();
+  loop();
+});
+
+})();
+</script>
+</body>
+</html>

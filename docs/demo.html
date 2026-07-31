@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MiniChart — interactive demo</title>
+<style>
+  :root {
+    --bg: #0f1419; --panel: #161b22; --panel-2: #21262d; --border: #30363d;
+    --text: #e6edf3; --text-dim: #8b949e; --accent: #58a6ff; --green: #3fb950;
+    --red: #f85149; --yellow: #d29922; --purple: #bc8cff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 32px 24px 80px; }
+  header { margin-bottom: 32px; }
+  header h1 { margin: 0 0 6px; font-size: 28px; font-weight: 600; letter-spacing: -0.02em; }
+  header h1 .v { color: var(--accent); font-size: 14px; font-weight: 400; margin-left: 8px; }
+  header p { margin: 0; color: var(--text-dim); }
+  header .meta { margin-top: 12px; display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; }
+  header .meta span { color: var(--text-dim); }
+  header .meta b { color: var(--green); font-weight: 500; }
+
+  section {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 20px; margin-bottom: 20px;
+  }
+  section h2 {
+    margin: 0 0 4px; font-size: 15px; font-weight: 600; color: var(--text);
+    display: flex; align-items: center; gap: 8px;
+  }
+  section h2 .num {
+    background: var(--panel-2); color: var(--accent); border: 1px solid var(--border);
+    width: 22px; height: 22px; border-radius: 5px; font-size: 11px;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  section .desc { color: var(--text-dim); font-size: 12px; margin: 0 0 14px 30px; }
+  .demo-row { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+  .chart-box { flex: 1; min-width: 320px; }
+  .controls {
+    display: flex; flex-direction: column; gap: 8px;
+    background: var(--panel-2); padding: 12px; border-radius: 8px;
+    border: 1px solid var(--border); min-width: 200px;
+  }
+  .controls label { font-size: 11px; color: var(--text-dim); display: flex; flex-direction: column; gap: 4px; }
+  .controls button {
+    background: var(--panel); color: var(--text); border: 1px solid var(--border);
+    padding: 6px 10px; border-radius: 5px; font-size: 12px; cursor: pointer;
+    transition: background .12s, border-color .12s;
+  }
+  .controls button:hover { background: #2d333b; border-color: var(--accent); }
+  .controls button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .controls input[type="range"] { width: 100%; accent-color: var(--accent); }
+
+  canvas {
+    width: 100%; height: 220px; display: block;
+    background: var(--bg); border-radius: 6px;
+  }
+  .event-log {
+    margin-top: 10px; padding: 8px 10px; background: var(--bg);
+    border: 1px solid var(--border); border-radius: 6px;
+    font: 11px ui-monospace, 'SF Mono', monospace; color: var(--text-dim);
+    min-height: 24px; white-space: pre-wrap;
+  }
+  .event-log b { color: var(--green); }
+
+  .tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .tag {
+    font-size: 10px; padding: 2px 7px; border-radius: 10px;
+    background: var(--panel-2); color: var(--text-dim); border: 1px solid var(--border);
+  }
+  code { background: var(--panel-2); padding: 1px 5px; border-radius: 3px; font-size: 12px; }
+  footer { text-align: center; color: var(--text-dim); font-size: 12px; margin-top: 32px; }
+  footer a { color: var(--accent); text-decoration: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>MiniChart <span class="v">v0.1 · interactive demo</span></h1>
+    <p>Fast, dependency-free time-series charting on pure Canvas 2D. Every feature below is live — hover, click, toggle, tweak.</p>
+    <div class="meta">
+      <span><b>7.4 KB</b> gzipped</span>
+      <span><b>&lt;1ms</b> redraw @ 50k pts</span>
+      <span><b>0</b> dependencies</span>
+      <span>monotone cubic · overlay hover · zoom · themes · a11y</span>
+    </div>
+  </header>
+
+  <!-- 1. Basic line + area -->
+  <section>
+    <h2><span class="num">1</span> Line chart with gradient fill</h2>
+    <p class="desc">Monotone cubic interpolation (Fritsch–Carlson) — smooth, never overshoots. Adaptive Y labels, honest time axis. Hover for the crosshair + tooltip.</p>
+    <div class="chart-box"><canvas id="c1"></canvas></div>
+    <div class="tags"><span class="tag">type: line</span><span class="tag">fill</span><span class="tag">tension: 0.5</span><span class="tag">hover tooltip</span></div>
+  </section>
+
+  <!-- 2. Multi-series + legend toggle -->
+  <section>
+    <h2><span class="num">2</span> Multi-series with legend toggle</h2>
+    <p class="desc">Click a legend dot to hide/show a series. The Y-axis rescales to the visible set — hide the noisy one and watch the axis tighten.</p>
+    <div class="chart-box"><canvas id="c2"></canvas></div>
+    <div class="tags"><span class="tag">3 series</span><span class="tag">auto-rescale on toggle</span><span class="tag">clickable legend</span></div>
+  </section>
+
+  <!-- 3. Live updates -->
+  <section>
+    <h2><span class="num">3</span> Live-updating data stream</h2>
+    <p class="desc">A rolling 60-second window, updated every 500ms via <code>chart.update()</code>. Frame budget holds well under 16.7ms.</p>
+    <div class="demo-row">
+      <div class="chart-box"><canvas id="c3"></canvas></div>
+      <div class="controls">
+        <label>update rate
+          <input type="range" id="c3-rate" min="100" max="2000" step="100" value="500">
+          <span id="c3-rate-label" style="font-size:10px;color:var(--text-dim)">500 ms</span>
+        </label>
+        <button id="c3-pause">⏸ pause</button>
+        <button id="c3-spike">⚡ inject spike</button>
+        <div id="c3-stats" style="font-size:11px;color:var(--text-dim);margin-top:4px">cur: — max: —</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. Bar chart -->
+  <section>
+    <h2><span class="num">4</span> Bar chart from zero baseline</h2>
+    <p class="desc">Discrete bars for cumulative counters. Bars grow from zero (not the floor), so a non-zero <code>yMin</code> and negative values both render correctly.</p>
+    <div class="chart-box"><canvas id="c4"></canvas></div>
+    <div class="tags"><span class="tag">type: bar</span><span class="tag">zero baseline</span></div>
+  </section>
+
+  <!-- 5. Zoom + pan -->
+  <section>
+    <h2><span class="num">5</span> Zoom (viewport scales)</h2>
+    <p class="desc">The <code>setXRange()</code> API narrows the visible window. This is the foundation for interactive zoom/pan and cross-chart cursor sync.</p>
+    <div class="demo-row">
+      <div class="chart-box"><canvas id="c5"></canvas></div>
+      <div class="controls">
+        <button data-zoom="0.25">zoom to first 25%</button>
+        <button data-zoom="0.5">zoom to middle 50%</button>
+        <button data-zoom="0.25-end">zoom to last 25%</button>
+        <button data-zoom="reset">⟲ reset zoom</button>
+        <div id="c5-range" style="font-size:11px;color:var(--text-dim);margin-top:4px">view: full domain</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6. Gaps on null -->
+  <section>
+    <h2><span class="num">6</span> Gaps on null / NaN</h2>
+    <p class="desc">Missing data renders as a <b style="color:var(--red)">break</b>, not a misleading connector. Essential for monitoring — a dropped collector must read as a gap, not a flat trend.</p>
+    <div class="chart-box"><canvas id="c6"></canvas></div>
+    <div class="tags"><span class="tag">null → gap</span><span class="tag">NaN → gap</span><span class="tag">monitoring-honest</span></div>
+  </section>
+
+  <!-- 7. Negative values + auto-min -->
+  <section>
+    <h2><span class="num">7</span> Negative values & auto Y-min</h2>
+    <p class="desc">Auto-scaling now derives <b>both</b> ends of the Y range. Temperature deltas, signed net.rx, and all-negative series all render right-side-up.</p>
+    <div class="chart-box"><canvas id="c7"></canvas></div>
+    <div class="tags"><span class="tag">yMin: null (auto)</span><span class="tag">crosses zero</span><span class="tag">zero baseline</span></div>
+  </section>
+
+  <!-- 8. Formatters + theme -->
+  <section>
+    <h2><span class="num">8</span> Custom formatters & theme</h2>
+    <p class="desc">Detach your domain language from the chart core with <code>yFormat</code> / <code>xFormat</code>, and recolor every visual via <code>theme</code>.</p>
+    <div class="demo-row">
+      <div class="chart-box"><canvas id="c8"></canvas></div>
+      <div class="controls">
+        <label>theme
+          <button data-theme="dark" class="active">dark</button>
+          <button data-theme="light">light</button>
+        </label>
+        <label>y formatter
+          <button data-fmt="bytes" class="active">bytes</button>
+          <button data-fmt="currency">currency</button>
+          <button data-fmt="plain">plain</button>
+        </label>
+      </div>
+    </div>
+  </section>
+
+  <!-- 9. Events -->
+  <section>
+    <h2><span class="num">9</span> Event handlers</h2>
+    <p class="desc">Wire <code>on.{ready, hover, click, seriesToggle}</code> for custom tooltips, analytics, or cross-chart sync. Hover/click the chart below.</p>
+    <div class="chart-box"><canvas id="c9"></canvas></div>
+    <div class="event-log" id="c9-log">events will appear here…</div>
+  </section>
+
+  <!-- 10. Big dataset (decimation) -->
+  <section>
+    <h2><span class="num">10</span> 50 000 points (pixel-bucket decimation)</h2>
+    <p class="desc">Dense series are reduced to ~2 points per pixel column, preserving peaks and troughs. The overlay canvas keeps hover cheap regardless of N.</p>
+    <div class="demo-row">
+      <div class="chart-box"><canvas id="c10"></canvas></div>
+      <div class="controls">
+        <button id="c10-regen">↻ regenerate data</button>
+        <div id="c10-stats" style="font-size:11px;color:var(--text-dim);margin-top:4px">rendering…</div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    MiniChart v0.1 · <a href="docs.html">documentation</a> · <a href="https://github.com/">source</a> · MIT license
+  </footer>
+</div>
+
+<script src="minichart.min.js"></script>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+
+// ── helpers ─────────────────────────────────────────────────────────────────
+function makeLabels(n, spanSec) {
+  const t0 = Math.floor(Date.now() / 1000) - spanSec;
+  return Array.from({ length: n }, (_, i) => t0 + Math.round((i / (n - 1)) * spanSec));
+}
+function sine(n, opts = {}) {
+  const { amp = 40, off = 50, period = 50, noise = 8, seed = 1 } = opts;
+  return Array.from({ length: n }, (_, i) =>
+    off + amp * Math.sin(i / period * seed) + (Math.random() - 0.5) * noise);
+}
+// a stable pseudo-random for the big-dataset chart so regen is visible
+function seeded(n, seed) {
+  let s = seed;
+  return Array.from({ length: n }, () => {
+    s = (s * 1103515245 + 12345) & 0x7fffffff;
+    return 50 + ((s / 0x7fffffff) * 80) - 40;
+  });
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// 1. Line + area
+// ════════════════════════════════════════════════════════════════════════════
+new MiniChart($('c1'), {
+  labels: makeLabels(40, 600), rangeSec: 600,
+  yMin: 0, yMax: 100, yUnit: '%',
+  series: [{ label: 'CPU', color: '#58a6ff', data: sine(40, { amp: 30, off: 45 }) }],
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// 2. Multi-series + legend
+// ════════════════════════════════════════════════════════════════════════════
+new MiniChart($('c2'), {
+  labels: makeLabels(30, 300), rangeSec: 300,
+  series: [
+    { label: 'user',    color: '#58a6ff', data: sine(30, { amp: 20, off: 30, seed: 1 }) },
+    { label: 'system',  color: '#3fb950', data: sine(30, { amp: 15, off: 20, seed: 2.3 }) },
+    { label: 'iowait',  color: '#d29922', data: sine(30, { amp: 25, off: 60, seed: 0.7 }) },
+  ],
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// 3. Live updates
+// ════════════════════════════════════════════════════════════════════════════
+(function () {
+  const N = 60;
+  let data = sine(N, { amp: 25, off: 50, noise: 5 });
+  const labels = makeLabels(N, 60);
+  const chart = new MiniChart($('c3'), {
+    labels, rangeSec: 60, yMin: 0, yMax: 100, yUnit: '%',
+    series: [{ label: 'req/s', color: '#3fb950', data: data.slice() }],
+  });
+  let rate = 500, paused = false, timer = null, curMax = 0;
+  function tick() {
+    if (paused) return;
+    data.push(Math.max(0, Math.min(100, data[data.length - 1] + (Math.random() - 0.5) * 12)));
+    data.shift();
+    chart.update({ series: [{ label: 'req/s', color: '#3fb950', data: data.slice() }] });
+    const last = data[data.length - 1];
+    curMax = Math.max(curMax * 0.95, last);
+    $('c3-stats').textContent = 'cur: ' + last.toFixed(1) + '%   max(decay): ' + curMax.toFixed(1) + '%';
+  }
+  function restart() {
+    if (timer) clearInterval(timer);
+    timer = setInterval(tick, rate);
+  }
+  restart();
+  $('c3-rate').oninput = (e) => {
+    rate = +e.target.value;
+    $('c3-rate-label').textContent = rate + ' ms';
+    restart();
+  };
+  $('c3-pause').onclick = (e) => {
+    paused = !paused;
+    e.target.textContent = paused ? '▶ resume' : '⏸ pause';
+    e.target.classList.toggle('active', paused);
+    if (!paused) restart();
+  };
+  $('c3-spike').onclick = () => {
+    data[data.length - 1] = 95 + Math.random() * 5;
+    chart.update({ series: [{ label: 'req/s', color: '#f85149', data: data.slice() }] });
+    setTimeout(() => chart.update({ series: [{ label: 'req/s', color: '#3fb950', data: data.slice() }] }), 800);
+  };
+})();
+
+// ════════════════════════════════════════════════════════════════════════════
+// 4. Bar chart
+// ════════════════════════════════════════════════════════════════════════════
+new MiniChart($('c4'), {
+  type: 'bar', labels: makeLabels(24, 86400), rangeSec: 86400,
+  yMin: 0, yUnit: '',
+  series: [{ label: 'requests', color: '#bc8cff', data: sine(24, { amp: 40, off: 50, noise: 20 }) }],
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// 5. Zoom
+// ════════════════════════════════════════════════════════════════════════════
+(function () {
+  const labels = makeLabels(200, 3600);
+  const chart = new MiniChart($('c5'), {
+    labels, rangeSec: 3600, yMin: 0, yMax: 100, yUnit: '%',
+    series: [{ label: 'signal', color: '#58a6ff', data: sine(200, { amp: 30, off: 50, noise: 6 }) }],
+  });
+  function showRange() {
+    const { view, domain } = chart.getXRange();
+    const pct = ((view.max - view.min) / (domain.max - domain.min) * 100).toFixed(0);
+    $('c5-range').textContent = 'view: ' + pct + '% of domain';
+  }
+  document.querySelectorAll('[data-zoom]').forEach(b => {
+    b.onclick = () => {
+      const { domain } = chart.getXRange();
+      const span = domain.max - domain.min;
+      const z = b.dataset.zoom;
+      if (z === 'reset') chart.setXRange(null, null);
+      else if (z === '0.25') chart.setXRange(domain.min, domain.min + span * 0.25);
+      else if (z === '0.5') chart.setXRange(domain.min + span * 0.25, domain.min + span * 0.75);
+      else if (z === '0.25-end') chart.setXRange(domain.max - span * 0.25, domain.max);
+      showRange();
+    };
+  });
+  showRange();
+})();
+
+// ════════════════════════════════════════════════════════════════════════════
+// 6. Gaps on null
+// ════════════════════════════════════════════════════════════════════════════
+(function () {
+  const data = sine(40, { amp: 30, off: 50 });
+  // punch holes
+  [8, 9, 10, 22, 23, 30].forEach(i => data[i] = null);
+  data[15] = NaN;
+  new MiniChart($('c6'), {
+    labels: makeLabels(40, 600), rangeSec: 600, yMin: 0, yMax: 100, yUnit: '%',
+    series: [{ label: 'collector (with gaps)', color: '#f85149', data }],
+  });
+})();
+
+// ════════════════════════════════════════════════════════════════════════════
+// 7. Negative values
+// ════════════════════════════════════════════════════════════════════════════
+(function () {
+  // temperature deltas in °C
+  const data = Array.from({ length: 40 }, (_, i) =>
+    Math.sin(i / 6) * 8 + Math.cos(i / 11) * 4 + (Math.random() - 0.5) * 3);
+  new MiniChart($('c7'), {
+    labels: makeLabels(40, 600), rangeSec: 600,
+    yMin: null, yMax: null, yUnit: '°C',
+    series: [{ label: 'temp Δ', color: '#d29922', data }],
+  });
+})();
+
+// ════════════════════════════════════════════════════════════════════════════
+// 8. Formatters + theme
+// ════════════════════════════════════════════════════════════════════════════
+(function () {
+  const DARK = {
+    grid: 'rgba(255,255,255,0.06)', axisLabel: '#8b949e', crosshair: 'rgba(255,255,255,0.2)',
+    dotStroke: '#0f1419', tooltipBg: 'rgba(15,20,25,.95)', tooltipText: '#e1e4e8',
+    tooltipBorder: 'rgba(255,255,255,.1)', legendText: '#8b949e',
+  };
+  const LIGHT = {
+    grid: 'rgba(0,0,0,0.08)', axisLabel: '#57606a', crosshair: 'rgba(0,0,0,0.3)',
+    dotStroke: '#fff', tooltipBg: 'rgba(255,255,255,0.96)', tooltipText: '#1f2328',
+    tooltipBorder: 'rgba(0,0,0,0.12)', legendText: '#57606a',
+  };
+  const FMT = {
+    bytes: (v) => v < 1024 ? Math.round(v) + ' B'
+          : v < 1048576 ? (v / 1024).toFixed(1) + ' KB'
+          : (v / 1048576).toFixed(1) + ' MB',
+    currency: (v) => '$' + v.toFixed(2),
+    plain: (v) => String(Math.round(v)),
+  };
+  const data = sine(40, { amp: 600, off: 800, noise: 80 });
+  let theme = 'dark', fmt = 'bytes';
+  const chart = new MiniChart($('c8'), {
+    labels: makeLabels(40, 600), rangeSec: 600,
+    yMin: 0, yFormat: FMT.bytes, theme: DARK,
+    series: [{ label: 'transfer', color: '#bc8cff', data }],
+  });
+  function apply() {
+    chart.update({ theme: theme === 'dark' ? DARK : LIGHT, yFormat: FMT[fmt] });
+    // recolour the section to sell the theme switch
+    document.body.style.background = theme === 'dark' ? '#0f1419' : '#fff';
+    document.body.style.color = theme === 'dark' ? '#e6edf3' : '#1f2328';
+  }
+  document.querySelectorAll('[data-theme]').forEach(b => b.onclick = (e) => {
+    theme = e.target.dataset.theme;
+    document.querySelectorAll('[data-theme]').forEach(x => x.classList.toggle('active', x === e.target));
+    apply();
+  });
+  document.querySelectorAll('[data-fmt]').forEach(b => b.onclick = (e) => {
+    fmt = e.target.dataset.fmt;
+    document.querySelectorAll('[data-fmt]').forEach(x => x.classList.toggle('active', x === e.target));
+    apply();
+  });
+})();
+
+// ════════════════════════════════════════════════════════════════════════════
+// 9. Events
+// ════════════════════════════════════════════════════════════════════════════
+(function () {
+  const log = $('c9-log');
+  const lines = [];
+  function push(msg) {
+    const t = new Date().toLocaleTimeString('en', { hour12: false });
+    lines.unshift('[' + t + '] ' + msg);
+    if (lines.length > 5) lines.pop();
+    log.innerHTML = lines.map(l => '<b>›</b> ' + l).join('\n');
+  }
+  new MiniChart($('c9'), {
+    labels: makeLabels(30, 300), rangeSec: 300, yMin: 0, yMax: 100, yUnit: '%',
+    series: [
+      { label: 'alpha', color: '#58a6ff', data: sine(30, { off: 40, amp: 20 }) },
+      { label: 'beta',  color: '#3fb950', data: sine(30, { off: 60, amp: 15, seed: 2 }) },
+    ],
+    on: {
+      ready: () => push('ready — chart mounted'),
+      hover: ({ index }) => push(index >= 0 ? 'hover → point ' + index : 'hover → left chart'),
+      click: ({ index }) => push(index >= 0 ? 'click → point ' + index : 'click → empty space'),
+      seriesToggle: ({ index, visible }) => push('seriesToggle → #' + index + ' ' + (visible ? 'shown' : 'hidden')),
+    },
+  });
+})();
+
+// ════════════════════════════════════════════════════════════════════════════
+// 10. Big dataset (decimation)
+// ════════════════════════════════════════════════════════════════════════════
+(function () {
+  const N = 50000;
+  const stats = $('c10-stats');
+  function regen() {
+    const seed = Math.floor(Math.random() * 1e6);
+    const raw = seeded(N, seed);
+    // inject a few spikes so peak preservation is visible
+    raw[10000] = 130; raw[25000] = 125; raw[40000] = -10;
+    const labels = makeLabels(N, N);
+    const t0 = performance.now();
+    const chart = new MiniChart($('c10'), {
+      labels, rangeSec: N, yMin: null, yMax: null, yUnit: '',
+      series: [{ label: '50k pts', color: '#58a6ff', data: raw }],
+    });
+    const dt = performance.now() - t0;
+    // Decimation is reported as the ratio the plot width implies, not by
+    // reading the chart's internals: those are private and the minified build
+    // this page loads mangles their names, so reaching for them threw here.
+    const plotW = Math.max(1, chart.width - chart.opts.padding.left - chart.opts.padding.right);
+    stats.textContent = N.toLocaleString() + ' pts → ~' + Math.round(plotW * 2) +
+      ' vertices across ' + Math.round(plotW) + ' px (min/max per column, ' +
+      Math.round(N / plotW) + ' pts each)  ·  init ' + dt.toFixed(1) + 'ms';
+  }
+  regen();
+  $('c10-regen').onclick = regen;
+})();
+</script>
+</body>
+</html>

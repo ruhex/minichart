@@ -1,0 +1,66 @@
+{
+  "name": "minichart",
+  "version": "0.1.0",
+  "description": "Fast, dependency-free time-series charting on pure Canvas 2D.",
+  "keywords": [
+    "chart",
+    "charts",
+    "time-series",
+    "canvas",
+    "visualization",
+    "monitoring",
+    "dashboard",
+    "sparkline"
+  ],
+  "homepage": "https://minichart.org/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ruhex/minichart.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ruhex/minichart/issues"
+  },
+  "license": "MIT",
+  "author": "Mikhail Movchan (ruhex)",
+  "main": "minichart.js",
+  "types": "minichart.d.ts",
+  "unpkg": "dist/minichart.min.js",
+  "jsdelivr": "dist/minichart.min.js",
+  "exports": {
+    ".": {
+      "types": "./minichart.d.ts",
+      "import": "./dist/minichart.mjs",
+      "require": "./minichart.js",
+      "default": "./dist/minichart.min.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "minichart.js",
+    "minichart.d.ts",
+    "dist/minichart.min.js",
+    "dist/minichart.mjs",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "node build/minify.js && npm run site:sync",
+    "build:check": "node build/minify.js --check",
+    "site:sync": "node -e \"require('fs').copyFileSync('dist/minichart.min.js','docs/minichart.min.js')\"",
+    "test": "npm run test:unit && npm run test:types && npm run test:visual && npm run test:dist",
+    "test:unit": "node test/run.js",
+    "test:types": "node test/types.mjs",
+    "test:visual": "node test/visual.mjs",
+    "test:dist": "npm run build && node test/dist.mjs",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "devDependencies": {
+    "playwright": "^1.62.0",
+    "terser": "^5.49.0",
+    "typescript": "^5.9.3"
+  }
+}

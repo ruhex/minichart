@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MiniChart — time-series charts on plain Canvas 2D</title>
+<meta name="description" content="Time-series charts on plain Canvas 2D. Under 15 KB gzipped, no dependencies, a million points from raw array to painted chart in milliseconds.">
+<link rel="canonical" href="https://minichart.org/">
+<meta property="og:title" content="MiniChart">
+<meta property="og:description" content="Time-series charts on plain Canvas 2D. Under 15 KB gzipped, no dependencies.">
+<meta property="og:url" content="https://minichart.org/">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230C1A22'/%3E%3Cpath d='M4 22 L11 14 L17 18 L28 7' fill='none' stroke='%230057FF' stroke-width='3' stroke-linecap='square'/%3E%3C/svg%3E">
+
+<style>
+/* ------------------------------------------------------------------
+   Two accents only: --signal for live data and actions, --limit
+   exclusively for the 16.7 ms frame budget. If it is orange on this
+   page, it is a threshold.
+   ------------------------------------------------------------------ */
+:root {
+  --paper:  #edf1f3;
+  --panel:  #ffffff;
+  --rule:   #d5dde2;
+  --rule-2: #e6ebee;
+  --ink:    #0c1a22;
+  --muted:  #5a6b75;
+  --signal: #0057ff;
+  --signal-2: #00857d;   /* second data series — a colour, not a threshold */
+  --limit:  #e8590c;
+
+  --mono: ui-monospace, 'SF Mono', SFMono-Regular, 'Cascadia Mono', Menlo, Consolas, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+
+  --col: 760px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper:  #080f14;
+    --panel:  #0d171e;
+    --rule:   #1d2c36;
+    --rule-2: #14212a;
+    --ink:    #e8eef2;
+    --muted:  #7d909c;
+    --signal: #3d84ff;
+    --signal-2: #2fc2b4;
+    --limit:  #ff8438;
+  }
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  color: var(--ink);
+  background-color: var(--paper);
+  font: 15px/1.65 var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* The one atmospheric flourish: the page sits inside a ghosted chart —
+   the library's own gridlines and two monotone traces. Fixed, so it reads
+   as the surface the content rests on rather than something scrolling by. */
+.bg {
+  position: fixed; inset: 0;
+  width: 100%; height: 100%;
+  z-index: -1;
+  pointer-events: none;
+  fill: none;
+  stroke: var(--rule-2);
+}
+.bg .grid { stroke-width: 1; }
+.bg .trace { stroke: var(--rule); stroke-width: 1.5; }
+.bg .trace-2 { stroke: var(--rule-2); stroke-width: 1.5; }
+
+a { color: var(--signal); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 3px; }
+:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
+
+.col { max-width: var(--col); margin: 0 auto; padding: 0 24px; }
+
+/* ---------- nav ---------- */
+
+.nav {
+  display: flex; align-items: baseline; gap: 20px;
+  max-width: var(--col); margin: 0 auto; padding: 20px 24px;
+  font: 13px/1 var(--mono);
+}
+.nav .brand { font-weight: 600; letter-spacing: -0.02em; margin-right: auto; }
+.nav a { color: var(--muted); }
+.nav a:hover { color: var(--ink); text-decoration: none; }
+
+/* ---------- hero ---------- */
+
+.hero { padding-block: 64px 0; }
+
+h1 {
+  margin: 0;
+  font: 600 clamp(30px, 5vw, 42px)/1.12 var(--mono);
+  letter-spacing: -0.04em;
+  max-width: 17ch;
+}
+
+.lede {
+  margin: 20px 0 0;
+  max-width: 56ch;
+  color: var(--muted);
+}
+.lede b { color: var(--ink); font-weight: 500; font-variant-numeric: tabular-nums; }
+
+/* ---------- chart ---------- */
+
+.frame {
+  margin-top: 32px;
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  padding: 10px 12px 6px;
+  height: 212px;
+}
+.frame canvas { display: block; width: 100%; height: 190px; }
+
+/* The batch chart carries a real legend, which the library inserts above the
+   canvas inside this box — so the height follows the content instead of being
+   pinned like the hero's. */
+.frame-static { height: auto; padding-bottom: 10px; }
+.frame-static canvas { height: 220px; }
+.frame-static .mc-legend { font-family: var(--mono); }
+
+/* Doubles as legend and readout: each entry names a line and, where it
+   moves, carries its live value. */
+.caption {
+  display: flex; flex-wrap: wrap; gap: 6px 22px;
+  padding: 12px 2px 0;
+  font: 12px/1.4 var(--mono);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.caption i { font-style: normal; display: inline-flex; align-items: center; gap: 8px; }
+.caption i::before { content: ''; width: 14px; height: 2px; background: currentColor; flex: none; }
+.caption .trace { color: var(--signal); }
+.caption .limit { color: var(--limit); }
+
+/* ---------- install ---------- */
+
+.install { display: flex; margin: 32px 0 64px; }   /* full col width — aligns with the chart frame */
+.install-tabs { display: flex; }
+.install-tabs .tab {
+  padding: 0 12px;
+  background: var(--rule-2); border: 1px solid var(--rule); border-right: 0;
+  font: 500 12px/1 var(--mono); color: var(--muted); cursor: pointer;
+}
+.install-tabs .tab.active { background: var(--panel); color: var(--ink); }
+.install code {
+  flex: 1;
+  display: flex; align-items: center;
+  padding: 12px 16px;
+  background: var(--panel);
+  border: 1px solid var(--rule); border-right: 0;
+  font: 13px/1 var(--mono);
+  white-space: nowrap; overflow: hidden;
+}
+.install code i { color: var(--muted); font-style: normal; margin-right: 9px; }
+.copy {
+  padding: 0 16px;
+  background: var(--signal); color: #fff; border: 1px solid var(--signal);
+  font: 500 12px/1 var(--mono);
+  letter-spacing: 0.06em; text-transform: uppercase;
+  cursor: pointer;
+}
+.copy:hover { filter: brightness(1.1); }
+
+/* ---------- streaming note ---------- */
+
+.note { border-top: 1px solid var(--rule); padding-block: 56px 64px; }
+.note h2 {
+  margin: 0 0 16px;
+  font: 600 clamp(19px, 2.6vw, 23px)/1.25 var(--mono);
+  letter-spacing: -0.03em;
+}
+.note p { margin: 0; max-width: 60ch; color: var(--muted); }
+.note p + p { margin-top: 16px; }
+.note .cap-note { margin-top: 14px; font-size: 13px; }
+.note code {
+  font: 13px/1 var(--mono);
+  color: var(--ink); background: var(--rule-2);
+  padding: 2px 5px;
+}
+
+pre {
+  margin: 28px 0 0;
+  padding: 20px 22px;
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  overflow-x: auto;
+  font: 13px/1.7 var(--mono);
+  tab-size: 2;
+}
+pre .c { color: var(--muted); }
+pre .k { color: var(--signal); }
+
+/* ---------- footer ---------- */
+
+.foot {
+  border-top: 1px solid var(--rule);
+  padding-block: 24px 56px;
+  display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: baseline;
+  font: 12px/1.8 var(--mono);
+  color: var(--muted);
+}
+.foot .mit { margin-left: auto; }
+
+@media (max-width: 700px) {
+  .hero { padding-block: 44px 0; }
+  .frame { height: 184px; }
+  .frame canvas { height: 162px; }
+  .foot .mit { margin-left: 0; flex-basis: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition-duration: 0.01ms !important; }
+}
+</style>
+</head>
+<body>
+
+<svg class="bg" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+  <g class="grid">
+    <path d="M0 180H1440M0 360H1440M0 540H1440M0 720H1440"/>
+  </g>
+  <path class="trace" d="M0 742C130 726 214 640 336 618S536 668 648 578S858 434 996 452S1258 318 1440 236"/>
+  <path class="trace-2" d="M0 826C168 812 268 758 408 748S612 776 772 716S1016 620 1200 638S1372 566 1440 534"/>
+</svg>
+
+<nav class="nav">
+  <span class="brand">minichart</span>
+  <a href="demo.html">Demo</a>
+  <a href="docs.html">Docs</a>
+  <a href="https://github.com/ruhex/minichart">GitHub</a>
+</nav>
+
+<section class="hero col">
+  <h1>Charts that stay inside the frame.</h1>
+  <p class="lede">
+    Time-series on plain Canvas 2D, with no dependencies and no build step.
+    <b>Under 15&nbsp;KB</b> gzipped, and lean on memory: 4 bytes per retained
+    sample, so it scales to large datasets. A million points go from raw array
+    to painted chart in <b id="mpts">—</b>&nbsp;ms — measured in this tab, just now.
+  </p>
+
+  <div class="frame">
+    <canvas id="hero" aria-label="Live chart of this page's render time per frame, against the 16.7 millisecond frame budget"></canvas>
+  </div>
+
+  <div class="caption">
+    <i class="trace">this page, <span id="ms">—</span> ms per frame</i>
+    <i class="limit">16.7 ms — one frame at 60 Hz</i>
+  </div>
+
+  <div class="install">
+    <div class="install-tabs">
+      <button type="button" class="tab active" data-i="npm">npm</button>
+      <button type="button" class="tab" data-i="cdn">CDN</button>
+    </div>
+    <code id="install-code"><i>$</i>npm install minichart</code>
+    <button class="copy" id="copy" type="button">Copy</button>
+  </div>
+</section>
+
+<section class="note col" id="example">
+  <h2>One call turns data into a chart.</h2>
+  <p class="lede">
+    Hand it <code>series</code> and <code>labels</code> — MiniChart draws the axes,
+    the gaps, the decimation and the hover tooltip. No ceremony, no build step.
+  </p>
+<pre><span class="k">const</span> chart = <span class="k">new</span> MiniChart(canvas, {
+  series: [
+    { label: <span class="k">'cpu'</span>,    data: cpu, color: <span class="k">'#0057ff'</span> },
+    { label: <span class="k">'memory'</span>, data: mem, color: <span class="k">'#00857d'</span> },
+  ],
+  labels,                 <span class="c">// epoch seconds, ascending</span>
+});</pre>
+
+  <div class="frame frame-static">
+    <canvas id="batch" aria-label="Six hours of CPU and memory usage, drawn from a static array in one call"></canvas>
+  </div>
+  <p class="cap-note">That chart is the call above, run on 720 recorded samples — no
+     stream, no timers. The break near the middle is a run of <code>null</code>s:
+     a gap lifts the pen instead of drawing a false line across the missing span.</p>
+
+  <p>Hover for the per-point tooltip; click the legend to toggle a series. The same
+     call scales to a million points — denser series decimate to a per-column min/max.</p>
+</section>
+
+<section class="note col">
+  <p>
+    For a live feed, <code>push()</code> appends one sample in O(1) — it writes into a
+    single pixel-column bucket instead of re-running the O(n) recalculation that
+    <code>update()</code> pays on every batch swap. The cost is flat in n: ten thousand
+    points and ten million both measure about 0.10&nbsp;ms per sample.
+  </p>
+<pre><span class="k">import</span> MiniChart <span class="k">from</span> <span class="k">'minichart'</span>;
+
+<span class="k">const</span> chart = <span class="k">new</span> MiniChart(canvas, {
+  series: [{ label: <span class="k">'cpu'</span>, data, color: <span class="k">'#0057ff'</span> }],
+  labels,                                <span class="c">// epoch seconds, not indices</span>
+});
+
+chart.push(value, Date.now() / <span class="k">1000</span>);   <span class="c">// O(1), flat in n</span></pre>
+  <p>
+    Every option runs live in the <a href="demo.html">demo</a> and the
+    <a href="demo-streaming.html">streaming dashboard</a>; the full reference is in
+    <a href="docs.html">the docs</a>. TypeScript declarations ship inside the package.
+  </p>
+</section>
+
+<footer class="foot col">
+  <a href="https://www.npmjs.com/package/minichart">npm</a>
+  <a href="https://github.com/ruhex/minichart">GitHub</a>
+  <span class="mit">MIT. The chart above is MiniChart rendering itself.</span>
+</footer>
+
+<canvas id="benchcanvas" width="800" height="220" style="position:absolute;left:-9999px;top:0;width:800px;height:220px"></canvas>
+
+<script src="minichart.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var BUDGET_MS = 16.7;   // one frame at 60 Hz
+  var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // Read the palette back out of CSS so it lives in exactly one place.
+  function token(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+  function chartTheme() {
+    var dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    return {
+      grid:          dark ? 'rgba(255,255,255,0.07)' : 'rgba(12,26,34,0.07)',
+      axisLabel:     token('--muted'),
+      crosshair:     dark ? 'rgba(255,255,255,0.22)' : 'rgba(12,26,34,0.22)',
+      dotStroke:     token('--panel'),
+      tooltipBg:     token('--panel'),
+      tooltipText:   token('--ink'),
+      tooltipBorder: token('--rule'),
+      legendText:    token('--muted'),
+    };
+  }
+
+  // A pixel column spans WINDOW_SEC / plotW. At 30 s that is ~43 ms — well wider
+  // than a 60 Hz frame, so every column receives at least one push and the lines
+  // stay solid through ordinary hitches. Narrow the window and they go dashed.
+  var WINDOW_SEC = 30;
+  var SEED_N = 1000;      // 30 ms apart: denser than a column, so no seeded gaps
+
+  // rangeSec is a floor on the window, not a ceiling — the domain runs from the
+  // oldest retained label to the newest, so the axis only stops growing once
+  // eviction starts. Cap the ring at one window's worth of 60 Hz samples (plus
+  // the seed) and the chart settles at 30 s instead of stretching to ~65 s first.
+  var STREAM_CAP = SEED_N + WINDOW_SEC * 60;
+
+  // Seed the window before the first paint. The budget is a known constant, so
+  // its line can span the chart immediately; the measurements are not known yet,
+  // so series 0 is seeded with nulls — gaps, which lift the pen. Without this
+  // the chart is blank for the first seconds and reads as broken.
+  // Built fresh rather than once at parse time: the first frame can be minutes
+  // after the script runs (background tab), and a stale seed would put the
+  // window's right edge in the past — the axis would then span from the old seed
+  // to now instead of WINDOW_SEC, and stay stretched until eviction caught up.
+  function buildSeed() {
+    var labels = [], trace = [], budget = [];
+    var t0 = Date.now() / 1000 - WINDOW_SEC;
+    for (var i = 0; i < SEED_N; i++) {
+      labels.push(t0 + i * (WINDOW_SEC / SEED_N));
+      trace.push(null);
+      budget.push(BUDGET_MS);
+    }
+    return { labels: labels, trace: trace, budget: budget };
+  }
+  var seed = buildSeed();
+  var seedLabels = seed.labels, seedTrace = seed.trace, seedBudget = seed.budget;
+
+  // The budget is a real constant series, not a CSS overlay: the library draws
+  // it in the chart's own coordinate space, and the autoscale then sizes the
+  // axis to include it — which is what gives the trace its visible headroom.
+  var hero = new MiniChart(document.getElementById('hero'), {
+    series: [
+      { label: 'render', data: seedTrace, color: token('--signal') },
+      { label: 'budget', data: seedBudget, color: token('--limit') },
+    ],
+    labels: seedLabels,
+    rangeSec: WINDOW_SEC,
+    maxSamples: STREAM_CAP,
+    yMin: 0,
+    yTicks: 4,
+    fill: false,
+    tension: 0.35,
+    legend: false,
+    padding: { top: 14, right: 12, bottom: 22, left: 40 },
+    theme: chartTheme(),
+    // The constant series pins the range at >= 16.7, so whole ms never round to 0.
+    yFormat: function (v) { return v.toFixed(0); },
+  });
+
+  // ── The batch chart: the same library, the ordinary (non-streaming) call. ──
+  // Built once from arrays already in memory, exactly as the snippet above it
+  // reads. Seeded from a small LCG rather than Math.random so the shape on the
+  // page is the same for everyone — a screenshot of it stays true.
+  var rnd = (function (seed) {
+    return function () { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+  })(20260801);
+
+  var BATCH_N = 720;                       // 6 hours at one sample per 30 s
+  var batchLabels = [], cpu = [], mem = [];
+  var tBatch = Math.floor(Date.now() / 1000) - BATCH_N * 30;
+  var cpuV = 34, memV = 48;
+  for (var b = 0; b < BATCH_N; b++) {
+    batchLabels.push(tBatch + b * 30);
+    cpuV += (rnd() - 0.5) * 7 + (38 - cpuV) * 0.04;          // mean-reverting walk
+    cpuV += Math.sin(b / 41) * 1.6;                          // a slow duty cycle on top
+    memV += (rnd() - 0.5) * 1.4 + (52 - memV) * 0.01;
+    // A 12-sample outage in the middle: nulls, not zeros — the chart must skip
+    // the span rather than draw a plunge to the floor that never happened.
+    var gap = b >= 348 && b < 360;
+    cpu.push(gap ? null : Math.max(2, Math.min(98, cpuV)));
+    mem.push(gap ? null : Math.max(2, Math.min(98, memV)));
+  }
+
+  var batch = new MiniChart(document.getElementById('batch'), {
+    series: [
+      { label: 'cpu', data: cpu, color: token('--signal') },
+      { label: 'memory', data: mem, color: token('--signal-2') },
+    ],
+    labels: batchLabels,
+    yMin: 0,
+    yMax: 100,
+    yTicks: 4,
+    tension: 0.35,
+    fill: true,
+    legend: true,                                            // the prose promises click-to-toggle
+    padding: { top: 14, right: 12, bottom: 22, left: 46 },
+    theme: chartTheme(),
+    yFormat: function (v) { return v.toFixed(0) + '%'; },
+  });
+
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function () {
+    var theme = chartTheme();
+    hero.update({ theme: theme });
+    // Series colours are tokens too, so they have to be re-read, not just the theme.
+    batch.update({
+      theme: theme,
+      series: [
+        { label: 'cpu', data: cpu, color: token('--signal') },
+        { label: 'memory', data: mem, color: token('--signal-2') },
+      ],
+    });
+  });
+
+
+  var msEl = document.getElementById('ms');
+  var frameCost = 0;      // measured cost of the previous frame's chart work
+  var settleUntil = 0;    // reduced motion: stop once the window has filled
+  var running = false;
+
+  function start() {
+    if (running) return;
+    running = true;
+    requestAnimationFrame(tick);
+  }
+
+  // A hidden tab throttles rAF to about 1 fps. Those samples are both
+  // meaningless as a render-cost measurement and far too sparse to fill a pixel
+  // column, so they would tear the trace into dashes. Stop instead — and boot
+  // on the way back, since a page opened in a background tab (⌘-click, a
+  // restored session, a prerender) never got its first frame at all.
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) running = false;
+    else requestAnimationFrame(boot);
+  });
+
+  function tick(ts) {
+    if (!running) return;
+    // Two clocks, deliberately: performance.now() measures the duration, and
+    // the label is epoch seconds — what the time axis and the seeded window are
+    // both expressed in. Using performance.now() for the label would place the
+    // sample decades away from the window and show a fictional axis.
+    var stamp = Date.now() / 1000;
+    var t0 = performance.now();
+
+    // The chart work for this frame happens between t0 and the read below. What
+    // we push is the previous frame's measurement, so the number is real.
+    // One array = one data frame = one rebuild. Two scalar push()es at the same
+    // timestamp would land the same two samples but rebuild the paths twice,
+    // which would inflate the very number this line is measuring.
+    hero.push([frameCost, BUDGET_MS], stamp);
+
+    frameCost = performance.now() - t0;
+    msEl.textContent = frameCost.toFixed(2);
+
+    if (reduced && ts > settleUntil) { running = false; return; }
+    requestAnimationFrame(tick);
+  }
+
+  // One million points, built and repainted before the stream starts: it blocks
+  // for a few hundred ms, and doing that mid-stream would skip pixel columns and
+  // leave a gap in the trace that reads as a rendering fault.
+  function millionPointBench() {
+    var n = 1000000, data = new Array(n), labels = new Array(n);
+    var t = Math.floor(Date.now() / 1000) - n, v = 50;
+    for (var i = 0; i < n; i++) {
+      v += Math.sin(i / 900) * 0.4 + (i % 7 - 3) * 0.05;
+      data[i] = v;
+      labels[i] = t + i;
+    }
+
+    var bench = new MiniChart(document.getElementById('benchcanvas'), {
+      series: [{ label: 'bench', data: data, color: token('--signal') }],
+      labels: labels,
+      rangeSec: n,
+      yMin: null, yMax: null,
+      legend: false,
+      theme: chartTheme(),
+    });
+
+    // repaint() deliberately re-projects nothing — it re-strokes the cached,
+    // already-decimated Path2D, which is a couple of thousand vertices however
+    // many samples went into it. Timing that would report a fraction of a
+    // millisecond and measure none of the work the claim is about. update()
+    // takes the full path: rescan the bounds, re-project, re-decimate, repaint.
+    bench.repaint();                       // warm caches and fonts
+    var series = [{ label: 'bench', data: data, color: token('--signal') }];
+    var runs = 3, t0 = performance.now();
+    for (var r = 0; r < runs; r++) bench.update({ series: series });
+    var ms = (performance.now() - t0) / runs;
+
+    bench.destroy();
+    return ms;
+  }
+
+  // Runs once, on the first frame the page actually gets. Idempotent, because
+  // both the initial rAF and the visibilitychange handler call it — whichever
+  // arrives first wins and the other is a no-op.
+  var booted = false;
+  function boot(ts) {
+    if (booted) { if (!reduced) start(); return; }
+    booted = true;
+    // Bench first, re-seed second. The bench blocks for the better part of a
+    // second; seeding before it would date the window by that much and open a
+    // gap column between the seed's last label and the first live push — a
+    // break in both lines that reads as a rendering fault on first paint.
+    try {
+      document.getElementById('mpts').textContent = millionPointBench().toFixed(2);
+    } catch (e) {
+      document.getElementById('mpts').textContent = '?';
+    }
+    var fresh = buildSeed();
+    hero.update({
+      labels: fresh.labels,
+      series: [
+        { label: 'render', data: fresh.trace, color: token('--signal') },
+        { label: 'budget', data: fresh.budget, color: token('--limit') },
+      ],
+    });
+    settleUntil = ts + 2500;
+    start();
+  }
+
+  requestAnimationFrame(boot);
+
+  // Install tabs: npm vs a direct CDN <script> tag (no build step).
+  var installs = {
+    npm: { html: '<i>$</i>npm install minichart', text: 'npm install minichart' },
+    cdn: { html: '&lt;script src="https://unpkg.com/minichart"&gt;&lt;/script&gt;', text: '<script src="https://unpkg.com/minichart"><\/script>' },
+  };
+  var installCur = 'npm';
+  var installCode = document.getElementById('install-code');
+  document.querySelectorAll('.install-tabs .tab').forEach(function (t) {
+    t.addEventListener('click', function () {
+      installCur = t.dataset.i;
+      installCode.innerHTML = installs[installCur].html;
+      document.querySelectorAll('.install-tabs .tab').forEach(function (x) { x.classList.toggle('active', x === t); });
+    });
+  });
+  var copyBtn = document.getElementById('copy');
+  copyBtn.addEventListener('click', function () {
+    navigator.clipboard.writeText(installs[installCur].text).then(function () {
+      copyBtn.textContent = 'Copied';
+      setTimeout(function () { copyBtn.textContent = 'Copy'; }, 1600);
+    }, function () {
+      copyBtn.textContent = 'Press ⌘C';
+    });
+  });
+})();
+</script>
+</body>
+</html>

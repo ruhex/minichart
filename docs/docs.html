@@ -1,0 +1,1215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MiniChart — API documentation</title>
+<script>
+  // Set the theme before first paint to avoid a flash. Preference order:
+  // saved choice → OS prefers-color-scheme → dark.
+  try {
+    var t = localStorage.getItem('mc-docs-theme');
+    if (t !== 'light' && t !== 'dark')
+      t = (window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+    document.documentElement.dataset.theme = t;
+  } catch (e) { document.documentElement.dataset.theme = 'dark'; }
+</script>
+<style>
+  :root {
+    --bg: #0f1419; --panel: #161b22; --panel-2: #21262d; --border: #30363d; --hover-bg: #2d333b;
+    --text: #e6edf3; --text-dim: #8b949e; --text-mute: #6e7681;
+    --accent: #58a6ff; --accent-dim: rgba(88,166,255,0.12);
+    --green: #3fb950; --red: #f85149; --yellow: #d29922; --purple: #bc8cff;
+    --code-bg: #0d1117; --code-text: #c9d1d9;
+    --kw: #ff7b72; --str: #a5d6ff; --num: #79c0ff; --com: #8b949e; --fn: #d2a8ff; --prop: #79c0ff;
+  }
+  /* Light theme — applied via <html data-theme="light"> (set before paint in <head>). */
+  :root[data-theme="light"] {
+    --bg: #ffffff; --panel: #f6f8fa; --panel-2: #eaeef2; --border: #d0d7de; --hover-bg: #d8dee4;
+    --text: #1f2328; --text-dim: #57606a; --text-mute: #8c959f;
+    --accent: #0969da; --accent-dim: rgba(9,105,218,0.10);
+    --green: #1a7f37; --red: #cf222e; --yellow: #9a6700; --purple: #8250df;
+    --code-bg: #f6f8fa; --code-text: #1f2328;
+    --kw: #cf222e; --str: #0a3069; --num: #0550ae; --com: #6e7781; --fn: #8250df; --prop: #0550ae;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font: 14px/1.6 -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  /* ── layout ── */
+  .layout { display: flex; min-height: 100vh; }
+  nav.sidebar {
+    width: 260px; flex-shrink: 0; position: fixed; top: 0; left: 0; bottom: 0;
+    background: var(--panel); border-right: 1px solid var(--border);
+    padding: 24px 16px; overflow-y: auto;
+  }
+  nav.sidebar h1 { font-size: 16px; margin: 0 0 4px; }
+  nav.sidebar h1 .v { color: var(--accent); font-size: 11px; font-weight: 400; }
+  nav.sidebar .tagline { color: var(--text-mute); font-size: 11px; margin-bottom: 20px; }
+  nav.sidebar h3 {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--text-mute); margin: 18px 0 6px; font-weight: 600;
+  }
+  nav.sidebar a {
+    display: block; color: var(--text-dim); text-decoration: none;
+    padding: 4px 10px; border-radius: 5px; font-size: 13px; line-height: 1.4;
+    border-left: 2px solid transparent; margin-left: -2px;
+    transition: background .1s, color .1s;
+  }
+  nav.sidebar a:hover { background: var(--panel-2); color: var(--text); }
+  nav.sidebar a.active { color: var(--accent); background: var(--accent-dim); border-left-color: var(--accent); }
+  nav.sidebar a.sub { padding-left: 22px; font-size: 12px; }
+  main {
+    margin-left: 260px; flex: 1; padding: 40px 56px 120px; max-width: 920px;
+  }
+  /* ── typography ── */
+  h2 { font-size: 26px; font-weight: 600; margin: 56px 0 8px; letter-spacing: -0.02em;
+       padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  h2:first-of-type { margin-top: 0; }
+  h2 .anchor { color: var(--text-mute); font-size: 16px; margin-left: 8px; text-decoration: none; opacity: 0; transition: opacity .1s; }
+  h2:hover .anchor { opacity: 1; }
+  h3 { font-size: 17px; font-weight: 600; margin: 28px 0 6px; color: var(--text); }
+  h3 .sig { color: var(--accent); font-family: ui-monospace, monospace; font-size: 14px; }
+  h4 { font-size: 13px; font-weight: 600; margin: 18px 0 4px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; }
+  p { margin: 8px 0; }
+  p.lead { color: var(--text-dim); font-size: 15px; margin-top: 0; }
+  ul, ol { padding-left: 22px; }
+  li { margin: 4px 0; }
+  a { color: var(--accent); }
+  strong { color: var(--text); font-weight: 600; }
+  code.inline {
+    background: var(--panel-2); padding: 1.5px 6px; border-radius: 4px;
+    font: 12px/1.4 ui-monospace, 'SF Mono', Menlo, monospace; color: var(--accent);
+  }
+  /* ── code blocks ── */
+  .code-wrap { position: relative; margin: 12px 0; }
+  pre {
+    background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px;
+    padding: 14px 16px; overflow-x: auto; margin: 0;
+    font: 13px/1.55 ui-monospace, 'SF Mono', Menlo, monospace; color: var(--code-text);
+  }
+  pre code { font: inherit; }
+  pre .kw { color: var(--kw); }
+  pre .str { color: var(--str); }
+  pre .num { color: var(--num); }
+  pre .com { color: var(--com); font-style: italic; }
+  pre .fn { color: var(--fn); }
+  pre .prop { color: var(--prop); }
+  .copy-btn {
+    position: absolute; top: 8px; right: 8px;
+    background: var(--panel-2); color: var(--text-dim); border: 1px solid var(--border);
+    border-radius: 5px; padding: 3px 8px; font-size: 11px; cursor: pointer;
+    opacity: 0; transition: opacity .12s, background .12s;
+  }
+  .code-wrap:hover .copy-btn { opacity: 1; }
+  .copy-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .copy-btn.copied { background: var(--green); color: #fff; border-color: var(--green); opacity: 1; }
+  /* ── tables ── */
+  table {
+    width: 100%; border-collapse: collapse; margin: 12px 0;
+    font-size: 13px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+  }
+  th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { background: var(--panel-2); font-weight: 600; color: var(--text); font-size: 12px; }
+  td:first-child { color: var(--accent); font-family: ui-monospace, monospace; font-size: 12px; white-space: nowrap; }
+  td code { color: var(--purple); font-family: ui-monospace, monospace; font-size: 12px; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(88,166,255,0.04); }
+  /* ── callouts ── */
+  .callout {
+    background: var(--accent-dim); border-left: 3px solid var(--accent);
+    padding: 12px 16px; border-radius: 0 6px 6px 0; margin: 14px 0;
+    font-size: 13px;
+  }
+  .callout.warn { background: rgba(210,153,34,0.1); border-color: var(--yellow); }
+  .callout.tip { background: rgba(63,185,80,0.1); border-color: var(--green); }
+  .callout .label { font-weight: 600; text-transform: uppercase; font-size: 10px; letter-spacing: 0.08em; color: var(--accent); }
+  .callout.warn .label { color: var(--yellow); }
+  .callout.tip .label { color: var(--green); }
+  /* ── live demos ── */
+  .demo-card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px; margin: 14px 0;
+  }
+  .demo-card .demo-label {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--green); margin-bottom: 8px; font-weight: 600;
+  }
+  .demo-card canvas {
+    width: 100%; height: 180px; display: block; background: var(--code-bg);
+    border-radius: 6px;
+  }
+  .demo-card .demo-controls {
+    display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px;
+  }
+  .demo-card button {
+    background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+    padding: 5px 11px; border-radius: 5px; font-size: 12px; cursor: pointer;
+    transition: background .1s, border-color .1s;
+  }
+  .demo-card button:hover { background: var(--hover-bg); border-color: var(--accent); }
+  .demo-card button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .demo-card .demo-out {
+    font: 11px ui-monospace, monospace; color: var(--text-dim);
+    margin-top: 8px; min-height: 16px;
+  }
+  /* ── misc ── */
+  .pill {
+    display: inline-block; font-size: 10px; padding: 2px 8px; border-radius: 10px;
+    background: var(--panel-2); color: var(--text-dim); border: 1px solid var(--border);
+    margin-left: 6px; vertical-align: middle;
+  }
+  .pill.req { color: var(--red); border-color: rgba(248,81,73,0.3); }
+  .pill.opt { color: var(--green); border-color: rgba(63,185,80,0.3); }
+  hr { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
+  /* ── theme toggle ── */
+  .theme-toggle {
+    position: fixed; top: 14px; right: 18px; z-index: 50;
+    width: 34px; height: 34px; border-radius: 8px;
+    background: var(--panel-2); color: var(--text-dim); border: 1px solid var(--border);
+    font-size: 16px; line-height: 1; cursor: pointer; padding: 0;
+    display: flex; align-items: center; justify-content: center;
+    transition: background .12s, color .12s, border-color .12s;
+  }
+  .theme-toggle:hover { color: var(--text); border-color: var(--accent); }
+
+  /* responsive */
+  @media (max-width: 900px) {
+    nav.sidebar { position: static; width: 100%; height: auto; border-right: none; border-bottom: 1px solid var(--border); }
+    main { margin-left: 0; padding: 24px; }
+  }
+</style>
+</head>
+<body>
+<button id="theme-toggle" class="theme-toggle" aria-label="Toggle light/dark theme" title="Toggle theme"></button>
+<div class="layout">
+
+<!-- ════════════════ SIDEBAR ════════════════ -->
+<nav class="sidebar">
+  <h1>MiniChart <span class="v">v0.1</span></h1>
+  <div class="tagline">Canvas 2D time-series charts</div>
+
+  <h3>Getting started</h3>
+  <a href="#overview">Overview</a>
+  <a href="#install">Install</a>
+  <a href="#quickstart">Quick start</a>
+
+  <h3>API</h3>
+  <a href="#constructor">Constructor</a>
+  <a href="#options" class="sub">Options</a>
+  <a href="#options-series" class="sub">· Series</a>
+  <a href="#options-theme" class="sub">· Theme</a>
+  <a href="#options-format" class="sub">· Formatters</a>
+  <a href="#options-on" class="sub">· Event handlers</a>
+  <a href="#options-tooltip" class="sub">· Tooltip</a>
+
+  <h3>Methods</h3>
+  <a href="#update">update()</a>
+  <a href="#push">push() · streaming</a>
+  <a href="#setvisibleseries">setVisibleSeries()</a>
+  <a href="#setxrange">setXRange() · zoom</a>
+  <a href="#getxrange">getXRange()</a>
+  <a href="#repaint">repaint()</a>
+  <a href="#destroy">destroy()</a>
+
+  <h3>Events</h3>
+  <a href="#events">Event reference</a>
+
+  <h3>Guides</h3>
+  <a href="#frameworks">React &amp; Vue</a>
+  <a href="#recipes">Recipes</a>
+  <a href="#a11y">Accessibility</a>
+</nav>
+
+<!-- ════════════════ MAIN ════════════════ -->
+<main>
+
+<!-- ── OVERVIEW ── -->
+<h2 id="overview">Overview <a class="anchor" href="#overview">#</a></h2>
+<p class="lead">
+  MiniChart is one of the smallest and fastest dependency-free time-series
+  charting libraries — <strong>under 15 KB gzipped</strong>, zero dependencies, on pure
+  Canvas 2D. It keeps only the source index of each retained sample (4 bytes, not a
+  per-point object), so large datasets stay light on memory. Built for monitoring
+  dashboards: dense series, frequent live updates, and honest rendering of missing
+  data (gaps, not connectors; a reading the gaps leave alone is drawn as a dot rather than dropped).
+</p>
+<p class="lead">
+  Two render paths cover every workload. <a href="#update"><code class="inline">update()</code></a>
+  hot-swaps a dataset through a full O(n) recalc — a million points in ~12 ms, inside
+  one frame. <a href="#push"><code class="inline">push()</code></a> appends one sample at
+  <strong>O(1)</strong> cost that is <strong>flat in n</strong> — ~0.1 ms whether the chart
+  holds 10k or 1M points — so a dashboard of many streaming charts holds 60 fps where
+  <code class="inline">update()</code> drops frames. Repaint of the cached path is ~0.3 ms
+  at a million points.
+</p>
+<div class="callout tip">
+  <div class="label">Live demo</div>
+  Every code example on this page is runnable. The boxes below each example show the chart updating in real time.
+</div>
+
+<!-- ── INSTALL ── -->
+<h2 id="install">Install <a class="anchor" href="#install">#</a></h2>
+<p>Every entry point below exposes the same class. Pick by how your app loads code.</p>
+
+<h3>From a CDN</h3>
+<p>Defines the <code class="inline">MiniChart</code> global. Nothing to build.</p>
+
+<div class="code-wrap">
+<button class="copy-btn">copy</button>
+<pre><code>&lt;<span class="kw">script</span> <span class="prop">src</span>=<span class="str">"https://unpkg.com/minichart@0.1.0/dist/minichart.min.js"</span>&gt;&lt;/<span class="kw">script</span>&gt;
+&lt;<span class="kw">script</span>&gt;
+  <span class="kw">const</span> chart = <span class="kw">new</span> <span class="fn">MiniChart</span>(canvas, { <span class="com">/* … */</span> });
+&lt;/<span class="kw">script</span>&gt;</code></pre>
+</div>
+
+<div class="callout warn">
+  <div class="label">Pre-1.0: pin the exact version</div>
+  MiniChart is on <code class="inline">0.x</code> — the public API is still settling, and per semver a
+  <strong>minor bump may include breaking changes</strong>. For production, pin the exact version
+  (<code class="inline">@0.1.0</code>); use <code class="inline">@0.1</code> or <code class="inline">@latest</code>
+  only for experimentation. (A bare <code class="inline">https://unpkg.com/minichart</code> serves the newest
+  release, which may break you on the next minor.) The same paths work on jsDelivr:
+  <code class="inline">https://cdn.jsdelivr.net/npm/minichart@0.1.0/dist/minichart.min.js</code>.
+  The API will graduate to the stable <code class="inline">1.x</code> line once it holds up under real use.
+</div>
+
+<h3>Self-hosted</h3>
+<p>Copy <code class="inline">dist/minichart.min.js</code> next to your other assets and load it with a
+plain <code class="inline">&lt;script&gt;</code>. It is the same file the CDN serves — one request, no
+dependencies, and a <code class="inline">.map</code> alongside it so DevTools still shows the original
+source when you debug.</p>
+
+<h3>From a package manager</h3>
+<p>The package is plain npm metadata, so every manager installs it the same way — there is
+nothing registry-specific in it.</p>
+
+<div class="code-wrap">
+<button class="copy-btn">copy</button>
+<pre><code>npm  install minichart
+pnpm add     minichart
+yarn add     minichart
+bun  add     minichart
+deno add     npm:minichart</code></pre>
+</div>
+
+<div class="code-wrap">
+<button class="copy-btn">copy</button>
+<pre><code><span class="com">// ES modules — Vite, webpack, Rollup, Next, Nuxt</span>
+<span class="kw">import</span> <span class="fn">MiniChart</span> <span class="kw">from</span> <span class="str">'minichart'</span>;
+
+<span class="com">// CommonJS — the module *is* the class, not a namespace</span>
+<span class="kw">const</span> <span class="fn">MiniChart</span> = <span class="kw">require</span>(<span class="str">'minichart'</span>);</code></pre>
+</div>
+
+<h3>What ships in the package</h3>
+<table class="opt">
+  <thead><tr><th>File</th><th>Format</th><th>Resolved by</th></tr></thead>
+  <tbody>
+    <tr><td><code class="inline">minichart.js</code></td><td>script / CommonJS, unminified</td><td><code class="inline">require()</code></td></tr>
+    <tr><td><code class="inline">dist/minichart.mjs</code></td><td>ES module</td><td><code class="inline">import</code>, bundlers</td></tr>
+    <tr><td><code class="inline">dist/minichart.min.js</code></td><td>script / CommonJS, minified</td><td><code class="inline">&lt;script&gt;</code>, CDN</td></tr>
+    <tr><td><code class="inline">dist/minichart.min.mjs</code></td><td>ES module, minified</td><td>manual imports</td></tr>
+    <tr><td><code class="inline">minichart.d.ts</code></td><td>TypeScript declarations</td><td>picked up automatically</td></tr>
+  </tbody>
+</table>
+<p>Bundlers pick the ES module and minify it themselves, so importing from
+<code class="inline">'minichart'</code> already gives you a minified build in production — there is no
+separate "min" import to remember.</p>
+
+<h3>TypeScript</h3>
+<p>Types ship inside the package — no <code class="inline">@types/minichart</code> to install and
+nothing to configure. <code class="inline">package.json</code> points at
+<code class="inline">minichart.d.ts</code>, so editors and <code class="inline">tsc</code> find it
+on their own.</p>
+
+<div class="code-wrap">
+<button class="copy-btn">copy</button>
+<pre><code><span class="kw">import</span> <span class="fn">MiniChart</span>, { <span class="fn">MiniChartOptions</span>, <span class="fn">MiniChartSeries</span> } <span class="kw">from</span> <span class="str">'minichart'</span>;
+
+<span class="com">// MiniChart is both a value and a type, so it fits a typed ref directly:</span>
+<span class="kw">const</span> chartRef = <span class="fn">useRef</span>&lt;<span class="fn">MiniChart</span> | <span class="kw">null</span>&gt;(<span class="kw">null</span>);</code></pre>
+</div>
+
+<p>Exported types: <code class="inline">MiniChartOptions</code>,
+<code class="inline">MiniChartSeries</code>, <code class="inline">MiniChartTheme</code>,
+<code class="inline">MiniChartPadding</code>, <code class="inline">MiniChartHandlers</code>,
+<code class="inline">MiniChartRange</code>, <code class="inline">MiniChartXRange</code>,
+<code class="inline">ChartType</code>, <code class="inline">XFormat</code>, <code class="inline">YFormat</code>,
+<code class="inline">ReadyPayload</code>, <code class="inline">PointEventPayload</code>, <code class="inline">SeriesTogglePayload</code>.</p>
+
+<div class="callout tip">
+  <div class="label">Verified, not assumed</div>
+  The declarations are checked on every <code class="inline">npm test</code> against two fixtures:
+  one that must compile under <code class="inline">strict</code>, and one where every line must be
+  <em>rejected</em>. The second half is the point — declarations that quietly degraded to
+  <code class="inline">any</code> would otherwise still look green. Option typos are caught as well:
+  <code class="inline">yTikcs</code> yields <em>"Did you mean to write 'yTicks'?"</em>.
+</div>
+
+<!-- ── QUICKSTART ── -->
+<h2 id="quickstart">Quick start <a class="anchor" href="#quickstart">#</a></h2>
+<p>The smallest useful chart — a single line with gradient fill and a time axis:</p>
+
+<div class="code-wrap">
+<button class="copy-btn">copy</button>
+<pre><code><span class="kw">const</span> chart = <span class="kw">new</span> <span class="fn">MiniChart</span>(canvas, {
+  <span class="prop">series</span>: [{ <span class="prop">label</span>: <span class="str">'CPU'</span>, <span class="prop">color</span>: <span class="str">'#58a6ff'</span>, <span class="prop">data</span>: [<span class="num">10</span>, <span class="num">35</span>, <span class="num">22</span>, <span class="num">60</span>, <span class="num">45</span>, <span class="num">80</span>] }],
+  <span class="prop">labels</span>: [<span class="num">1640000000</span>, <span class="num">1640000060</span>, <span class="num">1640000120</span>, <span class="num">1640000180</span>, <span class="num">1640000240</span>, <span class="num">1640000300</span>],
+  <span class="prop">rangeSec</span>: <span class="num">300</span>,   <span class="com">// total X span in seconds</span>
+  <span class="prop">yMin</span>: <span class="num">0</span>, <span class="prop">yMax</span>: <span class="num">100</span>, <span class="prop">yUnit</span>: <span class="str">'%'</span>,
+});</code></pre>
+</div>
+
+<div class="demo-card">
+  <div class="demo-label">▶ Result</div>
+  <canvas id="demo-quickstart"></canvas>
+</div>
+
+<!-- ═════════════ CONSTRUCTOR ═════════════ -->
+<h2 id="constructor">Constructor <a class="anchor" href="#constructor">#</a></h2>
+<h3><span class="sig">new MiniChart(canvas, opts?)</span></h3>
+
+<table>
+  <thead><tr><th>param</th><th>type</th><th>description</th></tr></thead>
+  <tbody>
+    <tr><td>canvas</td><td><code>HTMLCanvasElement</code></td><td>Target canvas. May report a zero CSS size at construction (an inline <code>&lt;script&gt;</code> before layout, or a mount inside a not-yet-shown container) — MiniChart polls via <code>requestAnimationFrame</code> and renders on the first frame where the canvas has a real size. Only a canvas that is <em>permanently</em> zero-sized never paints. A <code>ResizeObserver</code> and a <code>devicePixelRatio</code> listener are installed automatically, so the canvas may be fluid.</td></tr>
+    <tr><td>opts</td><td><code>MiniChartOptions</code></td><td>Configuration object. <strong>All fields are optional.</strong> See <a href="#options">Options</a>.</td></tr>
+  </tbody>
+</table>
+
+<div class="callout warn">
+  <div class="label">Throws</div>
+  <code class="inline">Error('MiniChart: 2D canvas context unavailable')</code> if <code>canvas</code> is null/undefined, is not a real <code>&lt;canvas&gt;</code> (no <code>getContext</code>), or <code>canvas.getContext('2d')</code> returns null — fail-fast so the caller gets a clear message instead of a cryptic downstream TypeError.
+</div>
+
+<p>At construction MiniChart will:</p>
+<ul>
+  <li>size the backing store to <code>cssSize × devicePixelRatio</code>;</li>
+  <li>insert a transparent overlay canvas (for the cheap hover layer) — only if the canvas has a parent element;</li>
+  <li>insert the legend element (if <code class="inline">legend: true</code> and the canvas has a parent element);</li>
+  <li>wire Pointer Events, keyboard handler, ResizeObserver, DPR tracker;</li>
+  <li>fire the <a href="#events"><code class="inline">ready</code></a> event once, at the end of construction (before the first frame if the canvas has not been laid out yet — <code>width</code>/<code>height</code> are then <code>undefined</code> until layout).</li>
+</ul>
+
+<!-- ═════════════ OPTIONS ═════════════ -->
+<h2 id="options">Options <a class="anchor" href="#options">#</a></h2>
+<p class="lead">All options can be set at construction and hot-swapped later via <a href="#update"><code class="inline">update()</code></a>.</p>
+
+<table>
+  <thead><tr><th>option</th><th>type</th><th>default</th><th>description</th></tr></thead>
+  <tbody>
+    <tr><td>type</td><td><code>'line' | 'bar'</code></td><td><code>'line'</code></td><td>Render mode. <code>'bar'</code> draws discrete bars growing from the zero baseline.</td></tr>
+    <tr><td>series</td><td><code>MiniChartSeries[]</code></td><td><code>[]</code></td><td>The data series. See <a href="#options-series">Series</a>.</td></tr>
+    <tr><td>labels</td><td><code>number[]</code></td><td><code>[]</code></td><td>X-axis timestamps in <strong>epoch seconds</strong>, ascending, parallel to each series' <code>data</code>. When omitted/empty, the X axis falls back to the sample index.</td></tr>
+    <tr><td>rangeSec</td><td><code>number</code></td><td>span of labels</td><td>Minimum X-axis span in seconds — a floor, not a ceiling: the axis still stretches to hold every retained label. Lets a 40-minute data window sit honestly on the left of a 12-hour dashboard tile.</td></tr>
+    <tr><td>maxSamples</td><td><code>number</code></td><td>~2× plot width, or the initial count</td><td>Upper bound on samples held in a streaming chart (see <a href="#push"><code class="inline">push()</code></a>). Past the cap up to 10% of it is evicted per pass, but only rows the window has already scrolled past — trimming on-screen rows would leave the min/max buckets describing samples the data no longer holds. Changeable on a live chart with <code class="inline">update({ maxSamples })</code>.</td></tr>
+    <tr><td>validate</td><td><code>boolean</code></td><td><code>false</code></td><td>Dev-mode contract check. Construction, <code class="inline">update()</code> and <code class="inline">push()</code> then throw on labels that are non-finite or descending, or on a series whose <code class="inline">data</code> is not the same length as <code class="inline">labels</code>. Off, these fail silently as a wrong-shaped chart. O(n) per call — leave it off in production.</td></tr>
+    <tr><td>yMin</td><td><code>number | null</code></td><td><code>0</code></td><td>Fixed Y min. <code>null</code> = auto from visible data (+10% headroom). Auto-min is relaxed past a pinned value when the data does not fit (all-negative series).</td></tr>
+    <tr><td>yMax</td><td><code>number | null</code></td><td><code>null</code></td><td>Fixed Y max. <code>null</code> = auto from data (+10% headroom).</td></tr>
+    <tr><td>yUnit</td><td><code>string</code></td><td><code>''</code></td><td>Mode selector for the built-in Y formatter (overridden by <a href="#options-format">yFormat</a>). Only <code>'MB'</code> and <code>'MB/s'</code> are recognised — they switch the axis to GB/k scaling; any other value (incl. <code>'%'</code>) is a visual no-op (the unit string is <em>not</em> appended — use <code>yFormat</code> or a CSS suffix for that).</td></tr>
+    <tr><td>yTicks</td><td><code>number</code></td><td><code>4</code></td><td>Number of Y-axis intervals; draws <code>yTicks + 1</code> horizontal grid lines and Y labels (default 4 → 5 lines).</td></tr>
+    <tr><td>tension</td><td><code>number</code></td><td><code>0.5</code></td><td>Curve smoothing, <code>0</code> = straight segments, <code>1</code> = full Fritsch–Carlson monotone cubic. Monotonicity is always preserved — never overshoots data bounds.</td></tr>
+    <tr><td>fill</td><td><code>boolean | 'flat'</code></td><td><code>true</code></td><td>Area fill under each line series. <code>true</code> (default) = vertical gradient; <code>'flat'</code> = solid alpha, far cheaper to rasterize (preferable for streaming/repaint-heavy charts); <code>false</code> = none.</td></tr>
+    <tr><td>padding</td><td><code>MiniChartPadding</code></td><td><code>{ top: 12, right: 10, bottom: 22, left: 38 }</code></td><td>Plot-area insets in CSS pixels. <code>left</code> auto-sizes to <code>max(28, widest Y label + 10)</code> unless set explicitly.</td></tr>
+    <tr><td>xFormat</td><td><code>XFormat</code></td><td><code>'time'</code></td><td>X-axis formatter. See <a href="#options-format">Formatters</a>.</td></tr>
+    <tr><td>yFormat</td><td><code>YFormat</code></td><td><code>null</code></td><td>Y-axis formatter override. See <a href="#options-format">Formatters</a>.</td></tr>
+    <tr><td>legend</td><td><code>boolean</code></td><td><code>true</code></td><td>Show a clickable HTML legend above the canvas. Click toggles series visibility.</td></tr>
+    <tr><td>theme</td><td><code>Partial&lt;MiniChartTheme&gt;</code></td><td>dark defaults</td><td>Theme tokens. See <a href="#options-theme">Theme</a>.</td></tr>
+    <tr><td>on</td><td><code>MiniChartHandlers</code></td><td><code>null</code></td><td>Event handlers. See <a href="#options-on">Event handlers</a>.</td></tr>
+    <tr><td>tooltip</td><td><code>MiniChartTooltipOptions</code></td><td><code>{ hideZero: true, position: 'outside' }</code></td><td>Tooltip behaviour. See <a href="#options-tooltip">Tooltip</a>.</td></tr>
+  </tbody>
+</table>
+
+<h3 id="options-series">Series <a class="anchor" href="#options-series">#</a></h3>
+
+<div class="code-wrap">
+<button class="copy-btn">copy</button>
+<pre><code><span class="kw">interface</span> <span class="fn">MiniChartSeries</span> {
+  <span class="prop">label</span>: <span class="kw">string</span>;                          <span class="com">// legend + tooltip</span>
+  <span class="prop">color</span>: <span class="kw">string</span>;                           <span class="com">// #rgb | #rrggbb | rgb() | named</span>
+  <span class="prop">data</span>: <span class="kw">Array</span>&lt;<span class="kw">number</span> | <span class="kw">null</span>&gt;;              <span class="com">// parallel to chart.labels</span>
+  <span class="prop">notes</span>?: <span class="kw">Array</span>&lt;<span class="kw">string</span> | <span class="kw">null</span>&gt;;            <span class="com">// optional per-point tooltip note</span>
+}</code></pre>
+</div>
+
+<ul>
+  <li><strong>color</strong> accepts any CSS color. Invalid values degrade to neutral grey instead of crashing.</li>
+  <li><strong>data</strong> entries may be <code class="inline">null</code> / <code class="inline">NaN</code> / <code class="inline">±Infinity</code> — these create a <strong>gap</strong> in the line (not a misleading connector) and are <strong>excluded from Y auto-scaling</strong>, so one dead sample can't poison the axis.</li>
+  <li><strong>notes</strong> render under the value in the tooltip. Useful for derived context: <code>'"/" 79% → "2.3 GB of 3 GB, 482 MB free"'</code>.</li>
+</ul>
+
+<h3 id="options-theme">Theme <a class="anchor" href="#options-theme">#</a></h3>
+<p>Override any subset to adapt to a light dashboard or a custom palette.</p>
+
+<div class="code-wrap">
+<button class="copy-btn">copy</button>
+<pre><code><span class="kw">interface</span> <span class="fn">MiniChartTheme</span> {
+  <span class="prop">grid</span>: <span class="kw">string</span>;          <span class="com">// horizontal grid line color</span>
+  <span class="prop">axisLabel</span>: <span class="kw">string</span>;     <span class="com">// Y/X axis tick label color</span>
+  <span class="prop">crosshair</span>: <span class="kw">string</span>;     <span class="com">// hover crosshair color</span>
+  <span class="prop">dotStroke</span>: <span class="kw">string</span>;     <span class="com">// hover dot outline color</span>
+  <span class="prop">tooltipBg</span>: <span class="kw">string</span>;     <span class="com">// tooltip background</span>
+  <span class="prop">tooltipText</span>: <span class="kw">string</span>;   <span class="com">// tooltip text color</span>
+  <span class="prop">tooltipBorder</span>: <span class="kw">string</span>; <span class="com">// tooltip border color</span>
+  <span class="prop">legendText</span>: <span class="kw">string</span>;    <span class="com">// legend text color</span>
+}</code></pre>
+</div>
+
+<div class="demo-card">
+  <div class="demo-label">▶ Try it: switch theme</div>
+  <canvas id="demo-theme"></canvas>
+  <div class="demo-controls">
+    <button data-t="dark" class="active">dark</button>
+    <button data-t="light">light</button>
+    <button data-t="solarized">solarized</button>
+  </div>
+</div>
+
+<h3 id="options-format">Formatters <a class="anchor" href="#options-format">#</a></h3>
+
+<h4>xFormat</h4>
+<div class="code-wrap">
+<button class="copy-btn">copy</button>
+<pre><code><span class="kw">type</span> <span class="fn">XFormat</span> =
+  | <span class="str">'time'</span>    <span class="com">// adaptive by rangeSec (default 3600): ≤1800s→HH:MM:SS, ≤86400s(1d)→HH:MM, ≤2419200s(4wk)→DD.MM HH:MM, else→DD.MM.YY. Locale is fixed to 'ru'.</span>
+  | <span class="str">'number'</span>  <span class="com">// raw numeric label, no time parsing</span>
+  | ((<span class="prop">value</span>: <span class="kw">number</span>, <span class="prop">index</span>: <span class="kw">number</span>, <span class="prop">chart</span>: <span class="fn">MiniChart</span>) =&gt; <span class="kw">string</span>);  <span class="com">// custom</span></code></pre>
+</div>
+
+<h4>yFormat</h4>
+<div class="code-wrap">
+<button class="copy-btn">copy</button>
+<pre><code><span class="kw">type</span> <span class="fn">YFormat</span> = ((<span class="prop">value</span>: <span class="kw">number</span>, <span class="prop">chart</span>: <span class="fn">MiniChart</span>) =&gt; <span class="kw">string</span>) | <span class="kw">null</span>;</code></pre>
+</div>
+<p>When provided, the built-in compact notation (with <code class="inline">yUnit</code> handling) is bypassed. Detach your domain language from the chart core:</p>
+
+<div class="callout">
+  <div class="label">Built-in Y notation</div>
+  Used when <code class="inline">yFormat</code> is <code class="inline">null</code> (the default): a missing value renders as <code>—</code> (em-dash); <code class="inline">yUnit: 'MB'</code> switches the whole axis to GB above 1024; <code class="inline">yUnit: 'MB/s'</code> collapses values ≥1000 to <code>k</code>; otherwise values ≥1000 show as <code>1.5k</code>, ≥100 round, and the rest use one decimal. <code class="inline">yUnit</code> is a mode keyword for the first two cases only — it is never appended as a string suffix.
+</div>
+
+<div class="code-wrap">
+<button class="copy-btn">copy</button>
+<pre><code><span class="prop">yFormat</span>: (<span class="prop">v</span>) =&gt; <span class="prop">v</span> &lt; <span class="num">1024</span> ? <span class="fn">Math</span>.<span class="fn">round</span>(<span class="prop">v</span>) + <span class="str">' B'</span>
+        : <span class="prop">v</span> &lt; <span class="num">1048576</span> ? (<span class="prop">v</span>/<span class="num">1024</span>).<span class="fn">toFixed</span>(<span class="num">1</span>) + <span class="str">' KB'</span>
+        : (<span class="prop">v</span>/<span class="num">1048576</span>).<span class="fn">toFixed</span>(<span class="num">1</span>) + <span class="str">' MB'</span></code></pre>
+</div>
+
+<div class="demo-card">
+  <div class="demo-label">▶ Try it: switch Y formatter</div>
+  <canvas id="demo-fmt"></canvas>
+  <div class="demo-controls">
+    <button data-f="bytes" class="active">bytes</button>
+    <button data-f="currency">currency</button>
+    <button data-f="plain">plain</button>
+  </div>
+</div>
+
+<h3 id="options-on">Event handlers <span class="sig">opts.on</span> <a class="anchor" href="#options-on">#</a></h3>
+<div class="code-wrap">
+<button class="copy-btn">copy</button>
+<pre><code><span class="kw">interface</span> <span class="fn">MiniChartHandlers</span> {
+  <span class="prop">ready</span>?:        (<span class="prop">p</span>: { <span class="prop">width</span>: <span class="kw">number</span> | <span class="kw">undefined</span>; <span class="prop">height</span>: <span class="kw">number</span> | <span class="kw">undefined</span> }, <span class="prop">chart</span>: <span class="fn">MiniChart</span>) =&gt; <span class="kw">void</span>;
+  <span class="prop">hover</span>?:        (<span class="prop">p</span>: { <span class="prop">index</span>: <span class="kw">number</span>; <span class="prop">event</span>?: <span class="kw">Event</span> },             <span class="prop">chart</span>: <span class="fn">MiniChart</span>) =&gt; <span class="kw">void</span>;
+  <span class="prop">click</span>?:        (<span class="prop">p</span>: { <span class="prop">index</span>: <span class="kw">number</span>; <span class="prop">event</span>?: <span class="kw">Event</span> },             <span class="prop">chart</span>: <span class="fn">MiniChart</span>) =&gt; <span class="kw">void</span>;
+  <span class="prop">seriesToggle</span>?: (<span class="prop">p</span>: { <span class="prop">index</span>: <span class="kw">number</span>; <span class="prop">visible</span>: <span class="kw">boolean</span> },          <span class="prop">chart</span>: <span class="fn">MiniChart</span>) =&gt; <span class="kw">void</span>;
+}</code></pre>
+</div>
+<p>Errors thrown inside a handler are caught and reported via <code class="inline">console.error</code> — a bad callback never breaks drawing. See <a href="#events">Event reference</a> for payloads.</p>
+
+<h3 id="options-tooltip">Tooltip <span class="sig">opts.tooltip</span> <a class="anchor" href="#options-tooltip">#</a></h3>
+<p>The hover tooltip is plain HTML attached to <code class="inline">document.body</code>, so it is never clipped by the chart's container. Override any subset of:</p>
+
+<div class="code-wrap">
+<button class="copy-btn">copy</button>
+<pre><code><span class="kw">interface</span> <span class="fn">MiniChartTooltipOptions</span> {
+  <span class="prop">hideZero</span>?: <span class="kw">boolean</span>;                 <span class="com">// hide a row whose value === 0 (default true; incl. -0)</span>
+  <span class="prop">position</span>?: <span class="str">'outside'</span> | <span class="str">'auto'</span>;  <span class="com">// placement (default 'outside')</span>
+}</code></pre>
+</div>
+<p><strong class="sig">hideZero</strong> &nbsp;<em>boolean · default <code class="inline">true</code></em> — drops a series' row from the tooltip when its value at the hovered timestamp is exactly <code class="inline">0</code>. On a dashboard of many containers most read <code class="inline">0</code> at any instant, so this keeps the tooltip on the one active series instead of a wall of zeros. Precisely:</p>
+<ul>
+  <li><strong>Hidden</strong> — any value <code class="inline">=== 0</code> (this includes <code class="inline">-0</code>).</li>
+  <li><strong>Kept</strong> — every non-zero value; <code class="inline">0.001</code> is shown, only an exact <code class="inline">0</code> is dropped.</li>
+  <li><strong>Always hidden</strong>, regardless of <code class="inline">hideZero</code> — <code class="inline">null</code> / <code class="inline">NaN</code> / <code class="inline">±Infinity</code>; these are gaps the line does not draw, so they never carried a reading to hide.</li>
+  <li><strong>Disable</strong> it where <code class="inline">0</code> is itself a meaningful reading (a temperature, a delta, a counter reset): <code class="inline">tooltip: { hideZero: false }</code>.</li>
+</ul>
+<p>Hovering 8 containers where only <code class="inline">transmission</code> is busy — the same instant, two settings:</p>
+<div class="code-wrap">
+<button class="copy-btn">copy</button>
+<pre><code><span class="com">// hideZero: true  (default)        hideZero: false</span>
+<span class="com">//</span>
+<span class="com">// 17:22:29                        17:22:29</span>
+<span class="com">// transmission      137           filebrowser         0</span>
+<span class="com">//                                 home-ui             0</span>
+<span class="com">//                                 interview-backend   0</span>
+<span class="com">//                                 transmission      137</span>
+<span class="com">//                                 vk-miniapp-caddy-1  0</span>
+<span class="com">//                                 …</span></code></pre>
+</div>
+<p><strong class="sig">position</strong> &nbsp;<em><code class="inline">'outside'</code> | <code class="inline">'auto'</code> · default <code class="inline">'outside'</code></em> — <code class="inline">'outside'</code> places the tooltip <em>off the plot rectangle</em> (beside the plot, or above/below the plot band) so it never covers the data being inspected (Grafana-style), falling back to the <code class="inline">'auto'</code> anchor when no side of the plot has room; <code class="inline">'auto'</code> anchors it to the hovered sample — above it when it fits, else below.</p>
+<div class="code-wrap">
+<button class="copy-btn">copy</button>
+<pre><code><span class="kw">new</span> <span class="fn">MiniChart</span>(canvas, {
+  <span class="prop">series</span>: containers,                       <span class="com">// many series, most idle</span>
+  <span class="prop">tooltip</span>: { <span class="prop">hideZero</span>: <span class="kw">true</span>, <span class="prop">position</span>: <span class="str">'outside'</span> }, <span class="com">// the defaults</span>
+});
+
+<span class="com">// hot-swap either knob later without touching the rest:</span>
+chart.<span class="fn">update</span>({ <span class="prop">tooltip</span>: { <span class="prop">position</span>: <span class="str">'auto'</span> } });
+<span class="com">// restore the original compact tooltip:</span>
+chart.<span class="fn">update</span>({ <span class="prop">tooltip</span>: { <span class="prop">hideZero</span>: <span class="kw">false</span>, <span class="prop">position</span>: <span class="str">'auto'</span> } });</code></pre>
+</div>
+
+<div class="callout">Both default to dashboard-friendly values (zeros hidden, tooltip off the plot). Restore the original compact behaviour with <code class="inline">tooltip: { hideZero: false, position: 'auto' }</code>.</div>
+
+<div class="demo-card">
+  <div class="demo-label">▶ Try it: hover the line — one busy container among idle ones</div>
+  <canvas id="demo-tooltip"></canvas>
+  <div class="demo-controls">
+    <button data-hz="on" class="active">zeros hidden</button>
+    <button data-hz="off">zeros shown</button>
+    <button data-pos="outside" class="active">outside plot</button>
+    <button data-pos="auto">over point</button>
+  </div>
+</div>
+
+<!-- ═════════════ METHODS ═════════════ -->
+<h2 id="update">Methods</h2>
+
+<h3 id="update-method"><span class="sig">chart.update(opts)</span> <a class="anchor" href="#update">#</a></h3>
+<p>Hot-swap any subset of options without recreating the instance. Resets hover state, recomputes geometry for options that affect it (<code>series</code>, <code>labels</code>, <code>yMin/Max</code>, <code>tension</code>, <code>padding</code>, <code>type</code>, …), and repaints. Safe to call from a 60 fps live-data loop.</p>
+
+<div class="code-wrap">
+<button class="copy-btn">copy</button>
+<pre><code><span class="com">// Rolling live-data window</span>
+<span class="fn">setInterval</span>(() =&gt; {
+  data.<span class="fn">push</span>(data.<span class="fn">shift</span>() + (<span class="fn">Math</span>.<span class="fn">random</span>() - <span class="num">0.5</span>) * <span class="num">5</span>);
+  chart.<span class="fn">update</span>({ <span class="prop">series</span>: [{ <span class="prop">label</span>: <span class="str">'live'</span>, <span class="prop">color</span>: <span class="str">'#3fb950'</span>, <span class="prop">data</span>: data.<span class="fn">slice</span>() }] });
+}, <span class="num">1000</span>);</code></pre>
+</div>
+
+<div class="callout">
+  <div class="label">Note</div>
+  Changing <code class="inline">labels</code> or <code class="inline">series</code> resets any active zoom — the viewport would otherwise point at timestamps that no longer exist.
+</div>
+
+<div class="callout">
+  <div class="label">Note</div>
+  <code class="inline">theme</code> is merged, not replaced: <code class="inline">update({ theme: { grid: '#333' } })</code> keeps every other token. Passing a partial theme never blanks the rest.
+</div>
+
+<div class="demo-card">
+  <div class="demo-label">▶ Try it: live update() every 800 ms</div>
+  <canvas id="demo-update"></canvas>
+  <div class="demo-controls">
+    <button id="update-toggle">⏸ pause</button>
+    <button id="update-regen">↻ regenerate</button>
+  </div>
+  <div class="demo-out" id="update-out">streaming…</div>
+</div>
+
+<h3 id="push"><span class="sig">chart.push(value, label?, seriesIdx?)</span> <a class="anchor" href="#push">#</a></h3>
+<p>The streaming fast path: append one sample to a series and re-render incrementally. Where <code>update()</code> re-runs a full O(n) recalc on every call, <code>push()</code> keeps, per series, a ring of per-pixel-column min/max buckets over a sliding window — one bucket updates per sample (O(1)) and the repaint rebuilds only the ~plotW-vertex paths (O(plotW·series)). <strong>The cost is flat in n</strong>: 10k, 100k and 1M points all measure ~0.1 ms per push, so a dashboard of many streaming charts holds 60 fps where <code>update()</code> drops frames.</p>
+<p><code class="inline">type: 'bar'</code> is the exception: a bar is drawn per sample, and a per-column bucket holds two extremes rather than the samples that fell in the column, so there is nothing to stream. <code class="inline">push()</code> appends and takes the full O(n) recalculation for bar charts.</p>
+
+<div class="code-wrap">
+<button class="copy-btn">copy</button>
+<pre><code><span class="com">// Live feed: one push per sample — no full rebuild, flat in n</span>
+<span class="fn">setInterval</span>(() =&gt; {
+  chart.<span class="fn">push</span>(cpu(), <span class="fn">Date</span>.<span class="fn">now</span>() / <span class="num">1000</span>, <span class="num">0</span>);   <span class="com">// value, epoch-sec label, series index</span>
+  chart.<span class="fn">push</span>(mem(), <span class="fn">Date</span>.<span class="fn">now</span>() / <span class="num">1000</span>, <span class="num">1</span>);   <span class="com">// second series, same timestamp</span>
+}, <span class="num">1000</span>);</code></pre>
+</div>
+
+<div class="callout">
+  <div class="label">When push, not update</div>
+  A metric scraped every second, or a multi-chart dashboard updating each frame. <code>push()</code> is flat in n; <code>update()</code> is O(n) per call. Pick one path per chart — after <code>push()</code> the bucket rings own the geometry, and the next <code>update()</code> drops them (its full recalc rebuilds the batch geometry and nulls the streaming state; the next push re-seeds it).
+</div>
+
+<div class="callout">
+  <div class="label">Bounded & scrolling</div>
+  A sliding window of at most <code class="inline">opts.maxSamples</code> samples (default ~2× the plot width, or the initial sample count — whichever is larger); past the cap the rows that have scrolled off the window are evicted, so the chart streams indefinitely without growing memory. Pass <code class="inline">label</code> as epoch seconds for a scrolling time axis (set <code class="inline">rangeSec</code> to size the window to your cadence); omit it for index-based streaming. Multi-series, area fill and hover all work; a <code class="inline">null</code>/<code class="inline">NaN</code> value is a gap.
+</div>
+
+<div class="demo-card">
+  <div class="demo-label">▶ Try it: live push() every frame (a real-time stream)</div>
+  <canvas id="demo-push"></canvas>
+  <div class="demo-controls">
+    <button id="push-toggle">⏸ pause</button>
+  </div>
+  <div class="demo-out" id="push-out">streaming…</div>
+</div>
+
+<h3 id="setvisibleseries"><span class="sig">chart.setVisibleSeries(indices)</span> <a class="anchor" href="#setvisibleseries">#</a></h3>
+<p>Programmatic equivalent of clicking legend items. Recomputes the Y range from the visible set (a hidden noisy series no longer stretches the axis) and updates the legend.</p>
+
+<div class="code-wrap">
+<button class="copy-btn">copy</button>
+<pre><code>chart.<span class="fn">setVisibleSeries</span>([<span class="num">0</span>, <span class="num">2</span>]);  <span class="com">// show only series 0 and 2</span>
+chart.<span class="fn">setVisibleSeries</span>([]);        <span class="com">// empty → show all (guard, never empty)</span></code></pre>
+</div>
+
+<div class="demo-card">
+  <div class="demo-label">▶ Try it: toggle visibility programmatically</div>
+  <canvas id="demo-visible"></canvas>
+  <div class="demo-controls">
+    <button data-vis="0" class="active">user</button>
+    <button data-vis="1" class="active">system</button>
+    <button data-vis="2" class="active">iowait</button>
+    <button data-vis="all">show all</button>
+  </div>
+</div>
+
+<h3 id="setxrange"><span class="sig">chart.setXRange(min, max)</span> <span class="anchor-text">· zoom</span> <a class="anchor" href="#setxrange">#</a></h3>
+<p>Narrow the visible X window. Both bounds are clamped into the data domain and reordered if swapped. <code>null</code> / <code>NaN</code> / <code>±Infinity</code> reset the zoom. This is the foundation for interactive zoom/pan and cross-chart cursor sync.</p>
+
+<div class="code-wrap">
+<button class="copy-btn">copy</button>
+<pre><code><span class="kw">const</span> { domain } = chart.<span class="fn">getXRange</span>();
+chart.<span class="fn">setXRange</span>(domain.max - <span class="num">3600</span>, domain.max);  <span class="com">// zoom to last hour</span>
+chart.<span class="fn">setXRange</span>(<span class="kw">null</span>, <span class="kw">null</span>);                  <span class="com">// reset</span></code></pre>
+</div>
+
+<div class="demo-card">
+  <div class="demo-label">▶ Try it: zoom presets</div>
+  <canvas id="demo-zoom"></canvas>
+  <div class="demo-controls">
+    <button data-zoom="0.25">first 25%</button>
+    <button data-zoom="0.5">middle 50%</button>
+    <button data-zoom="0.25-end">last 25%</button>
+    <button data-zoom="reset">⟲ reset</button>
+    <span id="zoom-out" style="font:11px ui-monospace;color:var(--text-dim);align-self:center;margin-left:8px"></span>
+  </div>
+</div>
+
+<h3 id="getxrange"><span class="sig">chart.getXRange()</span> <a class="anchor" href="#getxrange">#</a></h3>
+<p>Read-only accessor for the current viewport and the full data domain. Drives minimaps, "reset zoom" affordances, and cross-chart sync.</p>
+
+<div class="code-wrap">
+<button class="copy-btn">copy</button>
+<pre><code><span class="kw">const</span> { <span class="prop">view</span>, <span class="prop">domain</span> } = chart.<span class="fn">getXRange</span>();
+<span class="com">// view:   { min, max } — currently visible window</span>
+<span class="com">// domain: { min, max } — full data span (zoom reset target)</span></code></pre>
+</div>
+
+<h3 id="repaint"><span class="sig">chart.repaint()</span> <a class="anchor" href="#repaint">#</a></h3>
+<p>Repaint from the cached geometry without recomputing it — the cheap path for anything that changes how the chart looks but not where its points are: a container that was hidden while the chart was built, a canvas cleared by something else on the page, or a manual redraw after drawing over it. It is flat in the number of samples (~0.3 ms at a million points), because it strokes the already-built <code>Path2D</code> objects and never re-projects. Data and size changes must go through <a href="#update"><code class="inline">update()</code></a> or the resize path instead.</p>
+
+<div class="code-wrap">
+<button class="copy-btn">copy</button>
+<pre><code>chart.<span class="fn">repaint</span>();   <span class="com">// re-stroke cached paths; no geometry rebuilt</span></code></pre>
+</div>
+
+<h3 id="destroy"><span class="sig">chart.destroy()</span> <a class="anchor" href="#destroy">#</a></h3>
+<p>Detach <strong>all</strong> listeners (Pointer/mouse, keyboard, ResizeObserver, matchMedia), cancel pending <code class="inline">requestAnimationFrame</code>s, remove the overlay canvas / tooltip / legend / a11y live region from the DOM, and null out instance fields. <strong>Idempotent</strong> — safe to call twice. Call on unmount to prevent leaks.</p>
+
+<div class="code-wrap">
+<button class="copy-btn">copy</button>
+<pre><code><span class="com">// React / Vue / Svelte unmount hook</span>
+<span class="fn">onUnmount</span>(() =&gt; chart.<span class="fn">destroy</span>());</code></pre>
+</div>
+
+<!-- ═════════════ EVENTS ═════════════ -->
+<h2 id="events">Event reference <a class="anchor" href="#events">#</a></h2>
+<p class="lead">Fired via <a href="#options-on"><code class="inline">opts.on</code></a>. Each handler receives <code>(payload, chart)</code>.</p>
+
+<table>
+  <thead><tr><th>event</th><th>payload</th><th>fires when</th></tr></thead>
+  <tbody>
+    <tr><td>ready</td><td><code>{ width, height }</code></td><td>once, at the end of construction; after the first frame only when the canvas already has a non-zero size — otherwise before, with <code>width</code>/<code>height</code> undefined until layout</td></tr>
+    <tr><td>hover</td><td><code>{ index, event? }</code></td><td>hovered index changes; <code>index === -1</code> on pointer leave; also fires on keyboard nav</td></tr>
+    <tr><td>click</td><td><code>{ index, event? }</code></td><td>canvas click, or <kbd>Enter</kbd>/<kbd>Space</kbd> during keyboard nav</td></tr>
+    <tr><td>seriesToggle</td><td><code>{ index, visible }</code></td><td>after a legend click; <code>visible</code> reflects the new state</td></tr>
+  </tbody>
+</table>
+
+<div class="demo-card">
+  <div class="demo-label">▶ Try it: hover and click to see events</div>
+  <canvas id="demo-events"></canvas>
+  <div class="demo-out" id="events-out" style="min-height:60px">events will appear here…</div>
+</div>
+
+<!-- ═════════════ RECIPES ═════════════ -->
+<!-- ── FRAMEWORKS ── -->
+<h2 id="frameworks">React &amp; Vue <a class="anchor" href="#frameworks">#</a></h2>
+<p>MiniChart owns a canvas and draws imperatively, so the integration in any framework is
+the same three steps: create it once after mount, feed it new data through
+<code class="inline">update()</code>, and call <code class="inline">destroy()</code> on unmount.
+Never re-create the chart just because data changed — <code class="inline">update()</code> reuses
+the instance and is built for live loops.</p>
+
+<div class="callout">
+  <div class="label">Give the canvas its own wrapper</div>
+  The chart appends an overlay canvas and a legend <em>as siblings of the canvas</em>, inside its
+  parent element. Point your framework at the inner <code class="inline">&lt;canvas&gt;</code> and
+  leave the wrapper otherwise empty — if the framework also renders children there, its DOM diffing
+  and the chart's nodes will fight over the same parent.
+</div>
+
+<h3>React</h3>
+
+<div class="code-wrap">
+<button class="copy-btn">copy</button>
+<pre><code><span class="kw">import</span> { useEffect, useRef } <span class="kw">from</span> <span class="str">'react'</span>;
+<span class="kw">import</span> <span class="fn">MiniChart</span> <span class="kw">from</span> <span class="str">'minichart'</span>;
+
+<span class="kw">export function</span> <span class="fn">Chart</span>({ series, labels, rangeSec, height = <span class="num">200</span> }) {
+  <span class="kw">const</span> canvasRef = <span class="fn">useRef</span>(<span class="kw">null</span>);
+  <span class="kw">const</span> chartRef = <span class="fn">useRef</span>(<span class="kw">null</span>);
+
+  <span class="com">// Create once. The cleanup runs on unmount and, in StrictMode, between</span>
+  <span class="com">// React's double-invoked mounts — destroy() is idempotent, so that is safe.</span>
+  <span class="fn">useEffect</span>(() =&gt; {
+    chartRef.current = <span class="kw">new</span> <span class="fn">MiniChart</span>(canvasRef.current, {
+      series, labels, <span class="prop">rangeSec</span>: rangeSec,
+    });
+    <span class="kw">return</span> () =&gt; {
+      chartRef.current?.<span class="fn">destroy</span>();
+      chartRef.current = <span class="kw">null</span>;
+    };
+  }, []);
+
+  <span class="com">// Push data in. Cheap enough to run on every render that changes it.</span>
+  <span class="fn">useEffect</span>(() =&gt; {
+    chartRef.current?.<span class="fn">update</span>({ series, labels, <span class="prop">rangeSec</span>: rangeSec });
+  }, [series, labels, rangeSec]);
+
+  <span class="kw">return</span> (
+    &lt;<span class="kw">div</span> <span class="prop">style</span>={{ <span class="prop">width</span>: <span class="str">'100%'</span>, height }}&gt;
+      &lt;<span class="kw">canvas</span> <span class="prop">ref</span>={canvasRef} <span class="prop">style</span>={{ <span class="prop">width</span>: <span class="str">'100%'</span>, <span class="prop">height</span>: <span class="str">'100%'</span>, <span class="prop">display</span>: <span class="str">'block'</span> }} /&gt;
+    &lt;/<span class="kw">div</span>&gt;
+  );
+}</code></pre>
+</div>
+
+<div class="callout warn">
+  <div class="label">Watch the identity of your props</div>
+  The update effect compares <code class="inline">series</code> by reference. Building the array inline
+  in the parent — <code class="inline">&lt;Chart series={[{ … }]} /&gt;</code> — makes a new array every
+  render, so the effect fires every time. Keep it in state, or memoise it with
+  <code class="inline">useMemo</code>.
+</div>
+
+<h3>Vue 3</h3>
+
+<div class="code-wrap">
+<button class="copy-btn">copy</button>
+<pre><code>&lt;<span class="kw">script setup</span>&gt;
+<span class="kw">import</span> { ref, shallowRef, toRaw, onMounted, onBeforeUnmount, watch } <span class="kw">from</span> <span class="str">'vue'</span>;
+<span class="kw">import</span> <span class="fn">MiniChart</span> <span class="kw">from</span> <span class="str">'minichart'</span>;
+
+<span class="kw">const</span> props = <span class="fn">defineProps</span>({
+  <span class="prop">series</span>: Array, <span class="prop">labels</span>: Array, <span class="prop">rangeSec</span>: Number,
+});
+
+<span class="kw">const</span> canvasEl = <span class="fn">ref</span>(<span class="kw">null</span>);
+<span class="com">// shallowRef, not ref: the chart holds a canvas and typed arrays, and making</span>
+<span class="com">// all of that deeply reactive would be pure overhead — Vue would proxy every</span>
+<span class="com">// coordinate object it touches.</span>
+<span class="kw">const</span> chart = <span class="fn">shallowRef</span>(<span class="kw">null</span>);
+
+<span class="fn">onMounted</span>(() =&gt; {
+  chart.value = <span class="kw">new</span> <span class="fn">MiniChart</span>(canvasEl.value, {
+    <span class="prop">series</span>: props.series,
+    <span class="prop">labels</span>: props.labels,
+    <span class="prop">rangeSec</span>: props.rangeSec,
+  });
+});
+
+<span class="fn">onBeforeUnmount</span>(() =&gt; {
+  chart.value?.<span class="fn">destroy</span>();
+  chart.value = <span class="kw">null</span>;
+});
+
+<span class="fn">watch</span>(() =&gt; [props.series, props.labels, props.rangeSec], () =&gt; {
+  <span class="com">// toRaw() strips Vue's reactive proxy: the chart iterates these arrays on</span>
+  <span class="com">// every frame, and reading through a proxy costs far more than a copy.</span>
+  chart.value?.<span class="fn">update</span>({
+    <span class="prop">series</span>: <span class="fn">toRaw</span>(props.series),
+    <span class="prop">labels</span>: <span class="fn">toRaw</span>(props.labels),
+    <span class="prop">rangeSec</span>: props.rangeSec,
+  });
+}, { <span class="prop">deep</span>: <span class="kw">false</span> });
+&lt;/<span class="kw">script</span>&gt;
+
+&lt;<span class="kw">template</span>&gt;
+  &lt;<span class="kw">div</span> <span class="prop">class</span>=<span class="str">"chart"</span>&gt;&lt;<span class="kw">canvas</span> <span class="prop">ref</span>=<span class="str">"canvasEl"</span>&gt;&lt;/<span class="kw">canvas</span>&gt;&lt;/<span class="kw">div</span>&gt;
+&lt;/<span class="kw">template</span>&gt;
+
+&lt;<span class="kw">style scoped</span>&gt;
+.chart { width: 100%; height: 200px; }
+.chart canvas { width: 100%; height: 100%; display: block; }
+&lt;/<span class="kw">style</span>&gt;</code></pre>
+</div>
+
+<h3>Server-side rendering</h3>
+<p>MiniChart touches <code class="inline">document</code> and <code class="inline">window</code> in its
+constructor, so it cannot run during SSR. In Next.js and Nuxt the code above is already safe —
+<code class="inline">useEffect</code> and <code class="inline">onMounted</code> only run in the browser.
+If you import it at module scope in a server-rendered file, load it lazily instead:</p>
+
+<div class="code-wrap">
+<button class="copy-btn">copy</button>
+<pre><code><span class="kw">const</span> { <span class="prop">default</span>: MiniChart } = <span class="kw">await import</span>(<span class="str">'minichart'</span>);</code></pre>
+</div>
+
+<h3>Sizing</h3>
+<p>The chart follows its canvas via <code class="inline">ResizeObserver</code>, so a wrapper sized in
+CSS is enough — no manual resize handling, and no need to re-create anything when a flex or grid
+layout reflows. Give the canvas a CSS width and height, as in both examples above; the intrinsic
+<code class="inline">width</code>/<code class="inline">height</code> attributes are managed for you and
+set for the display's pixel ratio.</p>
+
+<h2 id="recipes">Recipes <a class="anchor" href="#recipes">#</a></h2>
+
+<h3>Live dashboard tile</h3>
+<div class="code-wrap">
+<button class="copy-btn">copy</button>
+<pre><code><span class="kw">const</span> data = <span class="kw">new</span> <span class="kw">Array</span>(<span class="num">60</span>).<span class="fn">fill</span>(<span class="num">0</span>);
+<span class="kw">const</span> labels = <span class="kw">Array</span>.<span class="fn">from</span>({ <span class="prop">length</span>: <span class="num">60</span> }, (<span class="kw">_</span>, <span class="prop">i</span>) =&gt; <span class="fn">Math</span>.<span class="fn">floor</span>(<span class="fn">Date</span>.<span class="fn">now</span>()/<span class="num">1000</span>) - <span class="num">60</span> + <span class="prop">i</span>);
+<span class="kw">const</span> chart = <span class="kw">new</span> <span class="fn">MiniChart</span>(el, { <span class="prop">labels</span>, <span class="prop">rangeSec</span>: <span class="num">60</span>, <span class="prop">yMin</span>: <span class="num">0</span>, <span class="prop">yMax</span>: <span class="num">100</span>, <span class="prop">yUnit</span>: <span class="str">'%'</span>,
+  <span class="prop">series</span>: [{ <span class="prop">label</span>: <span class="str">'CPU'</span>, <span class="prop">color</span>: <span class="str">'#58a6ff'</span>, <span class="prop">data</span> }] });
+<span class="fn">setInterval</span>(() =&gt; {
+  data.<span class="fn">push</span>(<span class="fn">getCpu</span>()); data.<span class="fn">shift</span>();
+  chart.<span class="fn">update</span>({ <span class="prop">series</span>: [{ <span class="prop">label</span>: <span class="str">'CPU'</span>, <span class="prop">color</span>: <span class="str">'#58a6ff'</span>, <span class="prop">data</span>: data.<span class="fn">slice</span>() }] });
+}, <span class="num">1000</span>);</code></pre>
+</div>
+
+<h3>Custom HTML tooltip via on.hover</h3>
+<div class="code-wrap">
+<button class="copy-btn">copy</button>
+<pre><code><span class="kw">new</span> <span class="fn">MiniChart</span>(c, {
+  <span class="prop">legend</span>: <span class="kw">false</span>,  <span class="com">// we render our own UI</span>
+  <span class="prop">on</span>: {
+    <span class="prop">hover</span>: ({ <span class="prop">index</span> }, <span class="prop">chart</span>) =&gt; {
+      <span class="kw">if</span> (<span class="prop">index</span> &lt; <span class="num">0</span>) <span class="kw">return</span> <span class="fn">hideTooltip</span>();
+      <span class="kw">const</span> t = chart.<span class="prop">opts</span>.<span class="prop">labels</span>[<span class="prop">index</span>];
+      <span class="kw">const</span> v = chart.<span class="prop">opts</span>.<span class="prop">series</span>[<span class="num">0</span>].<span class="prop">data</span>[<span class="prop">index</span>];
+      <span class="fn">showTooltip</span>(t, v, chart.<span class="fn">xPixelForIndex</span>(<span class="prop">index</span>));
+    },
+  },
+});</code></pre>
+</div>
+
+<h3>Threshold line on the overlay canvas</h3>
+<div class="code-wrap">
+<button class="copy-btn">copy</button>
+<pre><code><span class="kw">function</span> <span class="fn">drawThreshold</span>(<span class="prop">chart</span>, <span class="prop">value</span>, <span class="prop">color</span>) {
+  <span class="kw">const</span> <span class="prop">ctx</span> = <span class="prop">chart</span>.<span class="fn">getOverlayContext</span>();   <span class="com">// transparent overlay above the series</span>
+  <span class="kw">const</span> <span class="prop">r</span> = <span class="prop">chart</span>.<span class="prop">yRange</span>, { <span class="prop">padding</span> } = <span class="prop">chart</span>.<span class="prop">opts</span>;
+  <span class="kw">const</span> <span class="prop">plotH</span> = <span class="prop">chart</span>.height - <span class="prop">padding</span>.<span class="prop">top</span> - <span class="prop">padding</span>.<span class="prop">bottom</span>;
+  <span class="kw">const</span> <span class="prop">y</span> = <span class="prop">padding</span>.<span class="prop">top</span> + <span class="prop">plotH</span> - ((<span class="prop">value</span> - <span class="prop">r</span>.<span class="prop">min</span>) / (<span class="prop">r</span>.<span class="prop">max</span> - <span class="prop">r</span>.<span class="prop">min</span> || <span class="num">1</span>)) * <span class="prop">plotH</span>;
+  <span class="prop">ctx</span>.<span class="prop">strokeStyle</span> = <span class="prop">color</span>; <span class="prop">ctx</span>.<span class="fn">setLineDash</span>([<span class="num">6</span>, <span class="num">4</span>]);
+  <span class="prop">ctx</span>.<span class="fn">beginPath</span>(); <span class="prop">ctx</span>.<span class="fn">moveTo</span>(<span class="prop">padding</span>.<span class="prop">left</span>, <span class="prop">y</span>); <span class="prop">ctx</span>.<span class="fn">lineTo</span>(<span class="prop">chart</span>.width - <span class="prop">padding</span>.<span class="prop">right</span>, <span class="prop">y</span>);
+  <span class="prop">ctx</span>.<span class="fn">stroke</span>(); <span class="prop">ctx</span>.<span class="fn">setLineDash</span>([]);
+}</code></pre>
+</div>
+
+<h2 id="a11y">Accessibility <a class="anchor" href="#a11y">#</a></h2>
+<p>The canvas automatically gets <code class="inline">role="img"</code>, <code class="inline">tabindex="0"</code>, and a descriptive <code class="inline">aria-label</code>. A visually hidden <code class="inline">aria-live="polite"</code> region is created on first keyboard navigation and announces the values under the cursor as you move between points — the <code class="inline">aria-label</code> alone is only read on focus, so keyboard navigation would otherwise be silent. Keyboard users can:</p>
+<ul>
+  <li><kbd>Tab</kbd> to focus the chart,</li>
+  <li><kbd>←</kbd> / <kbd>→</kbd> (or <kbd>↑</kbd> / <kbd>↓</kbd>) to move between points,</li>
+  <li><kbd>Enter</kbd> / <kbd>Space</kbd> to fire a <code class="inline">click</code> event,</li>
+  <li><kbd>Esc</kbd> to clear the hover.</li>
+</ul>
+
+<hr>
+<p style="color:var(--text-mute);font-size:12px;text-align:center">
+  MiniChart v0.1 · MIT license · generated from <code class="inline" style="font-size:11px">minichart.d.ts</code> · <a href="demo.html">interactive demo →</a>
+</p>
+
+</main>
+</div>
+
+<!-- ═════════════ scripts ═════════════ -->
+<script src="minichart.min.js"></script>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+function labels(n, span) {
+  const t0 = Math.floor(Date.now()/1000) - span;
+  return Array.from({ length: n }, (_, i) => t0 + Math.round((i/(n-1))*span));
+}
+function sine(n, o = {}) {
+  const { amp = 30, off = 50, period = 8, noise = 6, seed = 1 } = o;
+  return Array.from({ length: n }, (_, i) =>
+    off + amp * Math.sin(i / period * seed) + (Math.random() - 0.5) * noise);
+}
+
+// ── page theme (light/dark) + coordinated chart re-theming ──
+// Full chart-theme token sets. The demos merge over MiniChart's defaults, so to
+// switch modes every token is overridden explicitly (a partial merge would leave
+// half the palette in the other mode).
+const CHART_THEMES = {
+  dark:  { grid: 'rgba(255,255,255,0.06)', axisLabel: '#8b949e', crosshair: 'rgba(255,255,255,0.2)',
+           dotStroke: '#0f1419', tooltipBg: 'rgba(15,20,25,.95)', tooltipText: '#e1e4e8',
+           tooltipBorder: 'rgba(255,255,255,.1)', legendText: '#8b949e' },
+  light: { grid: 'rgba(0,0,0,0.08)', axisLabel: '#57606a', crosshair: 'rgba(0,0,0,0.3)',
+           dotStroke: '#fff', tooltipBg: 'rgba(255,255,255,0.96)', tooltipText: '#1f2328',
+           tooltipBorder: 'rgba(0,0,0,0.12)', legendText: '#57606a' },
+};
+// Constructor wrapper that registers every demo chart, so the theme toggle can
+// re-theme them in sync with the page. (Bare `MiniChart` in this script resolves
+// to the lib's top-level class — reassigning window.MiniChart wouldn't reach it,
+// since a top-level class is a lexical global that shadows the window property —
+// so the demos call this wrapper instead.)
+const __charts = [];
+function makeChart(...args) {
+  const c = new MiniChart(...args); __charts.push(c); return c;
+}
+function docThemeIsLight() { return document.documentElement.dataset.theme === 'light'; }
+function applyDocTheme(light) {
+  document.documentElement.dataset.theme = light ? 'light' : 'dark';
+  try { localStorage.setItem('mc-docs-theme', light ? 'light' : 'dark'); } catch (e) {}
+  const t = CHART_THEMES[light ? 'light' : 'dark'];
+  for (const c of __charts) { try { c.update({ theme: t }); } catch (e) {} }
+  const btn = $('theme-toggle'); if (btn) btn.textContent = light ? '☀' : '☾';
+}
+(function () {
+  const b = $('theme-toggle'); if (!b) return;
+  b.textContent = docThemeIsLight() ? '☀' : '☾';
+  b.onclick = () => applyDocTheme(!docThemeIsLight());
+})();
+// The demo charts below are created dark; sync them to the saved/preferred theme
+// once they exist (after this script's synchronous IIFEs finish).
+queueMicrotask(() => applyDocTheme(docThemeIsLight()));
+
+// ── sidebar active link on scroll ──
+const links = Array.from(document.querySelectorAll('nav.sidebar a'));
+const headings = Array.from(document.querySelectorAll('main h2[id], main h3[id]'));
+function syncSidebar() {
+  let active = headings[0];
+  for (const h of headings) {
+    if (h.getBoundingClientRect().top < 120) active = h;
+  }
+  if (active) {
+    links.forEach(a => a.classList.toggle('active', a.getAttribute('href') === '#' + active.id));
+  }
+}
+window.addEventListener('scroll', syncSidebar, { passive: true });
+syncSidebar();
+
+// ── copy buttons ──
+document.querySelectorAll('.copy-btn').forEach(btn => {
+  btn.onclick = () => {
+    const code = btn.parentElement.querySelector('code');
+    navigator.clipboard.writeText(code ? code.textContent : '').then(() => {
+      btn.textContent = '✓ copied'; btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = 'copy'; btn.classList.remove('copied'); }, 1500);
+    });
+  };
+});
+
+// ═══════ live demos ═══════
+
+// quickstart
+new makeChart($('demo-quickstart'), {
+  labels: labels(6, 300), rangeSec: 300, yMin: 0, yMax: 100, yUnit: '%',
+  series: [{ label: 'CPU', color: '#58a6ff', data: [10, 35, 22, 60, 45, 80] }],
+});
+
+// theme switcher
+(function () {
+  const themes = {
+    dark: { grid: 'rgba(255,255,255,0.06)', axisLabel: '#8b949e', crosshair: 'rgba(255,255,255,0.2)', dotStroke: '#0f1419', tooltipBg: 'rgba(15,20,25,.95)', tooltipText: '#e1e4e8', tooltipBorder: 'rgba(255,255,255,.1)', legendText: '#8b949e' },
+    light: { grid: 'rgba(0,0,0,0.08)', axisLabel: '#57606a', crosshair: 'rgba(0,0,0,0.3)', dotStroke: '#fff', tooltipBg: 'rgba(255,255,255,0.96)', tooltipText: '#1f2328', tooltipBorder: 'rgba(0,0,0,0.12)', legendText: '#57606a' },
+    solarized: { grid: 'rgba(131,148,150,0.15)', axisLabel: '#93a1a1', crosshair: 'rgba(181,137,0,0.5)', dotStroke: '#002b36', tooltipBg: 'rgba(7,54,66,0.97)', tooltipText: '#93a1a1', tooltipBorder: 'rgba(181,137,0,0.3)', legendText: '#93a1a1' },
+  };
+  const data = sine(30, { amp: 30, off: 50 });
+  let cur = 'dark';
+  const ch = new makeChart($('demo-theme'), {
+    labels: labels(30, 300), rangeSec: 300, yMin: 0, yMax: 100, yUnit: '%',
+    theme: themes.dark,
+    series: [{ label: 'series', color: '#58a6ff', data }],
+  });
+  document.querySelectorAll('[data-t]').forEach(b => b.onclick = (e) => {
+    cur = e.target.dataset.t;
+    document.querySelectorAll('[data-t]').forEach(x => x.classList.toggle('active', x === e.target));
+    ch.update({ theme: themes[cur] });
+  });
+})();
+
+// tooltip options demo — one busy container among idle (0) ones
+(function () {
+  const n = 30;
+  const flat = (len) => new Array(len).fill(0);
+  const ch = new makeChart($('demo-tooltip'), {
+    labels: labels(n, 300), rangeSec: 300, yMin: 0, yMax: 100, yUnit: '%',
+    tooltip: { hideZero: true, position: 'outside' },
+    series: [
+      { label: 'web',    color: '#58a6ff', data: sine(n, { amp: 35, off: 50, noise: 6 }) },
+      { label: 'db',     color: '#3fb950', data: flat(n) },
+      { label: 'cache',  color: '#f0883e', data: flat(n) },
+      { label: 'queue',  color: '#bc8cff', data: flat(n) },
+      { label: 'worker', color: '#f85149', data: flat(n) },
+      { label: 'cron',   color: '#a371f7', data: flat(n) },
+    ],
+  });
+  document.querySelectorAll('[data-hz]').forEach(b => b.onclick = (e) => {
+    document.querySelectorAll('[data-hz]').forEach(x => x.classList.toggle('active', x === e.target));
+    ch.update({ tooltip: { hideZero: e.target.dataset.hz === 'on' } });
+  });
+  document.querySelectorAll('[data-pos]').forEach(b => b.onclick = (e) => {
+    document.querySelectorAll('[data-pos]').forEach(x => x.classList.toggle('active', x === e.target));
+    ch.update({ tooltip: { position: e.target.dataset.pos } });
+  });
+})();
+
+// formatter switcher
+(function () {
+  const fmts = {
+    bytes: (v) => v < 1024 ? Math.round(v) + ' B' : v < 1048576 ? (v/1024).toFixed(1) + ' KB' : (v/1048576).toFixed(1) + ' MB',
+    currency: (v) => '$' + v.toFixed(2),
+    plain: (v) => String(Math.round(v)),
+  };
+  const data = sine(30, { amp: 600, off: 800, noise: 80 });
+  let cur = 'bytes';
+  const ch = new makeChart($('demo-fmt'), {
+    labels: labels(30, 300), rangeSec: 300, yMin: 0, yFormat: fmts.bytes,
+    series: [{ label: 'transfer', color: '#bc8cff', data }],
+  });
+  document.querySelectorAll('[data-f]').forEach(b => b.onclick = (e) => {
+    cur = e.target.dataset.f;
+    document.querySelectorAll('[data-f]').forEach(x => x.classList.toggle('active', x === e.target));
+    ch.update({ yFormat: fmts[cur] });
+  });
+})();
+
+// update() live
+(function () {
+  let data = sine(40, { amp: 25, off: 50, noise: 5 });
+  let paused = false, timer;
+  const chart = new makeChart($('demo-update'), {
+    labels: labels(40, 400), rangeSec: 400, yMin: 0, yMax: 100, yUnit: '%',
+    series: [{ label: 'live', color: '#3fb950', data: data.slice() }],
+  });
+  function tick() {
+    if (paused) return;
+    data.push(Math.max(0, Math.min(100, data[data.length-1] + (Math.random()-0.5)*12)));
+    data.shift();
+    chart.update({ series: [{ label: 'live', color: '#3fb950', data: data.slice() }] });
+    $('update-out').textContent = 'latest: ' + data[data.length-1].toFixed(1) + '%';
+  }
+  timer = setInterval(tick, 800);
+  $('update-toggle').onclick = (e) => {
+    paused = !paused;
+    e.target.textContent = paused ? '▶ resume' : '⏸ pause';
+    e.target.classList.toggle('active', paused);
+  };
+  $('update-regen').onclick = () => { data = sine(40, { amp: 25, off: 50, noise: 5 }); };
+})();
+
+// push() live stream — one push per frame, flat in n
+(function () {
+  const N = 120;
+  const chart = new makeChart($('demo-push'), {
+    labels: labels(N, 60), rangeSec: 60, yMin: null, yMax: null, yUnit: '%',
+    series: [{ label: 'stream', color: '#2f81f7', data: sine(N, { amp: 30, off: 50, noise: 4 }) }],
+  });
+  let lbl = chart.opts.labels[chart.opts.labels.length - 1] + 1;
+  let i = N, paused = false, frameNo = 0;
+  function frame() {
+    if (!paused) {
+      const v = 50 + 30 * Math.sin(i / 8) + Math.sin(i * 2.3) * 4;
+      chart.push(v, lbl);
+      lbl++; i++;
+      if (++frameNo % 6 === 0) $('push-out').textContent = 'pushed: ' + (i - N) + ' · latest ' + v.toFixed(1) + '%';
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+  $('push-toggle').onclick = (e) => {
+    paused = !paused;
+    e.target.textContent = paused ? '▶ resume' : '⏸ pause';
+    e.target.classList.toggle('active', paused);
+  };
+})();
+
+// setVisibleSeries
+(function () {
+  const chart = new makeChart($('demo-visible'), {
+    labels: labels(30, 300), rangeSec: 300,
+    series: [
+      { label: 'user',   color: '#58a6ff', data: sine(30, { amp: 20, off: 30, seed: 1 }) },
+      { label: 'system', color: '#3fb950', data: sine(30, { amp: 15, off: 20, seed: 2.3 }) },
+      { label: 'iowait', color: '#d29922', data: sine(30, { amp: 25, off: 60, seed: 0.7 }) },
+    ],
+  });
+  let visible = [0, 1, 2];
+  function refresh() {
+    document.querySelectorAll('[data-vis]').forEach(b => {
+      if (b.dataset.vis === 'all') return;
+      b.classList.toggle('active', visible.includes(+b.dataset.vis));
+    });
+  }
+  document.querySelectorAll('[data-vis]').forEach(b => b.onclick = () => {
+    if (b.dataset.vis === 'all') { visible = [0,1,2]; }
+    else {
+      const i = +b.dataset.vis;
+      if (visible.includes(i)) visible = visible.filter(x => x !== i);
+      else visible.push(i);
+      if (visible.length === 0) visible = [0,1,2];
+    }
+    chart.setVisibleSeries(visible);
+    refresh();
+  });
+  refresh();
+})();
+
+// setXRange
+(function () {
+  const chart = new makeChart($('demo-zoom'), {
+    labels: labels(200, 3600), rangeSec: 3600, yMin: 0, yMax: 100, yUnit: '%',
+    series: [{ label: 'signal', color: '#58a6ff', data: sine(200, { amp: 30, off: 50, noise: 6 }) }],
+  });
+  function showRange() {
+    const { view, domain } = chart.getXRange();
+    const pct = ((view.max - view.min) / (domain.max - domain.min) * 100).toFixed(0);
+    $('zoom-out').textContent = 'view: ' + pct + '% of domain';
+  }
+  document.querySelectorAll('[data-zoom]').forEach(b => b.onclick = () => {
+    const { domain } = chart.getXRange();
+    const span = domain.max - domain.min;
+    const z = b.dataset.zoom;
+    if (z === 'reset') chart.setXRange(null, null);
+    else if (z === '0.25') chart.setXRange(domain.min, domain.min + span*0.25);
+    else if (z === '0.5') chart.setXRange(domain.min + span*0.25, domain.min + span*0.75);
+    else if (z === '0.25-end') chart.setXRange(domain.max - span*0.25, domain.max);
+    showRange();
+  });
+  showRange();
+})();
+
+// events
+(function () {
+  const out = $('events-out');
+  const lines = [];
+  function push(msg) {
+    const t = new Date().toLocaleTimeString('en', { hour12: false });
+    lines.unshift('[' + t + '] ' + msg);
+    if (lines.length > 4) lines.pop();
+    out.innerHTML = lines.map(l => '<b style="color:var(--green)">›</b> ' + l).join('<br>');
+  }
+  new makeChart($('demo-events'), {
+    labels: labels(30, 300), rangeSec: 300, yMin: 0, yMax: 100, yUnit: '%',
+    series: [
+      { label: 'alpha', color: '#58a6ff', data: sine(30, { off: 40, amp: 20 }) },
+      { label: 'beta',  color: '#3fb950', data: sine(30, { off: 60, amp: 15, seed: 2 }) },
+    ],
+    on: {
+      ready: () => push('ready'),
+      hover: ({ index }) => push(index >= 0 ? 'hover → point ' + index : 'hover → left'),
+      click: ({ index }) => push(index >= 0 ? 'click → point ' + index : 'click → empty'),
+      seriesToggle: ({ index, visible }) => push('seriesToggle #' + index + ' ' + (visible ? 'shown' : 'hidden')),
+    },
+  });
+})();
+</script>
+</body>
+</html>

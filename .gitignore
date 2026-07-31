@@ -1,0 +1,144 @@
+# ── Dependencies ─────────────────────────────────────────────────────────────
+node_modules/
+.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/releases
+!.yarn/plugins
+!.yarn/versions
+
+# ── Build output ─────────────────────────────────────────────────────────────
+# dist/ is generated, so it stays out of git: `npm run build` rebuilds it from
+# minichart.js, and `prepublishOnly` runs that build before every publish, so
+# the tarball on npm always carries a freshly built bundle. unpkg and jsDelivr
+# serve the npm tarball, not this repo — nothing external reads dist/ from here.
+#
+# Consequence, deliberately accepted: `npm run build:check` compares dist/ on
+# disk against a fresh build, so in a clean checkout it reports "out of date"
+# until something builds. `npm test` builds first (test:dist), so the suite is
+# unaffected; only build:check as a standalone CI staleness gate loses meaning.
+# Committing dist/ again is the one-line reversal if you want that gate back.
+dist/
+
+# Note: docs/minichart.min.js is the site's own copy, written by `site:sync`,
+# and stays committed — GitHub Pages serves docs/ straight from the repo, so
+# ignoring it would 404 on minichart.org. Do not widen the rule above to
+# *.min.js.
+
+# npm pack / publish artefacts
+*.tgz
+.npm/
+
+# A second lockfile from another package manager silently changes what CI
+# resolves. This project is npm-only — package-lock.json is the one that counts.
+yarn.lock
+pnpm-lock.yaml
+bun.lockb
+
+# ── Local scratch and debugging ──────────────────────────────────────────────
+# Ad-hoc probes and manual Playwright stands used while chasing a specific bug.
+# Not part of the test suite: `npm test` covers the same ground reproducibly.
+_verify/
+_*.cjs
+_*.mjs
+
+# Comparison / full-page captures taken while checking the site by eye.
+cmp-*.png
+full-page.png
+
+# Unreferenced: no page embeds it, and a 1 MB capture of an animation the live
+# demo already runs is not worth versioning.
+docs/demo-streaming.gif
+
+# Internal design notes. Nothing links to them, and they are not needed to
+# build, test, publish or use the library — README.md and docs/docs.html are the
+# documentation that ships. Kept locally, out of the repo.
+ARCHITECTURE.md
+
+# ── Every dot-directory, anywhere in the tree ────────────────────────────────
+# Deny-by-default rather than chasing names. AI assistants, editors, linters and
+# task runners each drop their own dot-directory — .claude/, .cursor/, .aider*/,
+# .vscode/, .idea/, .venv/, .turbo/, .parcel-cache/ — and a per-tool list is
+# always one tool behind. Some of them hold conversation logs, prompts, indexed
+# copies of the source, or cached credentials; none of it belongs in a public
+# repository. Nothing this project needs to build, test or publish lives in a
+# dot-directory, so blanket-ignoring them costs nothing.
+#
+# Dot-FILES are untouched by this: `.*/` matches directories only, so
+# .gitignore itself stays tracked. Secrets in dot-files are handled further
+# down (.env, .npmrc, keys).
+.*/
+
+# The one exception. GitHub reads workflows only from a committed .github/, so
+# an ignored one means CI silently never runs. Re-included as a directory —
+# git cannot re-include a file whose parent directory is excluded, so the
+# negation has to name the directory, exactly as it does here.
+!.github/
+
+# Explicit anyway, for anyone reading this file rather than testing it: these
+# are the ones already seen in this tree. All are covered by `.*/` above.
+.playwright-mcp/
+.playwright/
+.nyc_output/
+.claude/
+.cursor/
+.aider*
+
+# Tool output that is NOT a dot-directory, so it needs its own rules.
+playwright-report/
+test-results/
+blob-report/
+coverage/
+*.lcov
+
+# Host-specific screenshots and captures anywhere in the tree.
+*.png.orig
+screenshot*.png
+Screenshot*.png
+
+# ── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ── Local env and secrets ────────────────────────────────────────────────────
+# Nothing here reads env vars today; the rules exist so that adding a publish
+# token or an API key later cannot silently reach a commit.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+.npmrc
+.yarnrc
+secrets.json
+credentials.json
+
+# ── Editors and OS ───────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+desktop.ini
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+*.swo
+*~
+
+# ── Caches ───────────────────────────────────────────────────────────────────
+.cache/
+.temp/
+.tmp/
+*.tsbuildinfo
+.eslintcache
